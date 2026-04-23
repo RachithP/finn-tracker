@@ -25,7 +25,11 @@ jobs:
         run: pip install pip-audit && pip-audit --skip-editable
         continue-on-error: true
       - name: Run tests with coverage
+        env:
+          EXPENSE_TRACKER_DATA: ${{ runner.temp }}/finn-tracker-test
         run: |
+          mkdir -p "$EXPENSE_TRACKER_DATA/expense" "$EXPENSE_TRACKER_DATA/income"
+          python -c "from sample_data.generators import write_demo_files; write_demo_files('${{ runner.temp }}/finn-tracker-test/expense')"
           python -m pytest tests/ -v \
             --cov=finn_tracker --cov=parsers --cov=utils \
             --cov=app --cov=ingest --cov=models \
@@ -43,7 +47,11 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Generate coverage JSON
+        env:
+          EXPENSE_TRACKER_DATA: ${{ runner.temp }}/finn-tracker-test
         run: |
+          mkdir -p "$EXPENSE_TRACKER_DATA/expense" "$EXPENSE_TRACKER_DATA/income"
+          python -c "from sample_data.generators import write_demo_files; write_demo_files('${{ runner.temp }}/finn-tracker-test/expense')"
           python -m pytest tests/ -q \
             --cov=finn_tracker --cov=parsers --cov=utils \
             --cov=app --cov=ingest --cov=models \
