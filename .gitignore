@@ -1,0 +1,37 @@
+# Private financial data — never commit
+data/
+
+# Test artifacts
+tests/*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.coverage
+
+# OS
+.DS_Store
+
+# Local tool settings (machine-specific paths)
+.claude/
+
+# gstack AI agent artifacts (security reports, QA reports — keep local)
+.gstack/
+
+# Generated sample data files (CSV/PDF) in sample_data/ — keep Python source, ignore data
+sample_data/expense/
+sample_data/income/
+sample_data/*.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Environment
+.env
+*.env
+finn_tracker.egg-info/
