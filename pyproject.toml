@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "finn-tracker"
-version = "0.1.0"
+version = "0.1.1"
 description = "Privacy-first local expense tracker — import bank CSVs/PDFs, auto-categorize, explore trends. No data ever leaves your machine."
 readme = "README.md"
 requires-python = ">=3.9"

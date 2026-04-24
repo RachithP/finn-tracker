@@ -2,6 +2,13 @@
 
 All notable changes to finn-tracker are documented here.
 
+## [0.1.1] - 2026-04-23
+
+### Fixed
+
+- Fix `ModuleNotFoundError: No module named 'app'` when installed via `pip install finn-tracker`
+- Move all root-level modules (`app.py`, `models.py`, `ingest.py`, `parsers/`, `utils/`, `mcp_server.py`) into the `finn_tracker/` package to avoid global namespace pollution and ensure they are included in the wheel
+
 ## [0.1.0] - 2026-04-17
 
 Initial public release.
