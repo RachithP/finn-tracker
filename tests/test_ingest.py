@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ingest import ingest_file, ingest_files, merge_results, print_summary
-from models import Transaction, ParseResult
+from finn_tracker.ingest import ingest_file, ingest_files, merge_results, print_summary
+from finn_tracker.models import Transaction, ParseResult
 from sample_data.generators import write_sample_files
 
 

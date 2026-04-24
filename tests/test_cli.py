@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import app as flask_app
+import finn_tracker.app as flask_app
 from finn_tracker.__main__ import (
     _check_python_version,
     _resolve_data_dir,

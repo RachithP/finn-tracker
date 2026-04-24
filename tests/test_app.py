@@ -18,11 +18,11 @@ from typing import Optional
 
 import pandas as pd
 
-# Ensure project root is on path
+# Ensure project root is on path for sample_data
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import app as flask_app
-from models import Transaction, ParseResult, DEFAULT_CATEGORIES, mask_sensitive
+import finn_tracker.app as flask_app
+from finn_tracker.models import Transaction, ParseResult, DEFAULT_CATEGORIES, mask_sensitive
 
 # ── Test DB isolation ─────────────────────────────────────────────────────────
 # Redirect the app's DB to a dedicated test file for the entire test run so
@@ -45,9 +45,9 @@ def tearDownModule():
         _TEST_DB_PATH.unlink(missing_ok=True)
     except OSError:
         pass
-from parsers.csv_parser import parse_csv, _parse_amount, _parse_date, _detect_format
-from parsers.pdf_parser import _extract_date_from_cell, _parse_amount as pdf_parse_amount, _parse_date as pdf_parse_date
-from ingest import ingest_file, merge_results
+from finn_tracker.parsers.csv_parser import parse_csv, _parse_amount, _parse_date, _detect_format
+from finn_tracker.parsers.pdf_parser import _extract_date_from_cell, _parse_amount as pdf_parse_amount, _parse_date as pdf_parse_date
+from finn_tracker.ingest import ingest_file, merge_results
 from sample_data.generators import (
     write_sample_files, make_bad_csv,
     CHASE_BANK_CSV, CHASE_CREDIT_CSV, BOFA_BANK_CSV, GENERIC_CSV

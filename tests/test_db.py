@@ -17,7 +17,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.db import (
+from finn_tracker.utils.db import (
     _db_conn,
     make_txn_id,
     load_category_overrides,
@@ -35,7 +35,7 @@ from utils.db import (
     get_top_merchants,
     get_monthly_trend,
 )
-from models import DEFAULT_CATEGORIES
+from finn_tracker.models import DEFAULT_CATEGORIES
 
 
 def _init_test_db(db_path: Path):

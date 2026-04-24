@@ -9,7 +9,7 @@ from typing import Optional, List, Tuple
 
 import pdfplumber
 
-from models import Transaction, ParseResult, mask_sensitive
+from finn_tracker.models import Transaction, ParseResult, mask_sensitive
 
 
 DATE_PATTERNS = [

@@ -29,9 +29,12 @@ sample_data/*.db
 # Editor
 .vscode/
 .idea/
+.kiro/
+*.code-workspace
 *.swp
 
 # Environment
 .env
 *.env
 finn_tracker.egg-info/
+build/

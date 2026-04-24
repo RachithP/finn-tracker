@@ -137,12 +137,7 @@ def main() -> None:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     # ── Import app (after env var is set so _init_db uses correct path) ───────
-    # app.py lives at the package root — add it to sys.path so it's importable
-    # whether running from the repo directly or as a pip-installed entry point.
-    _pkg_root = str(Path(__file__).parent.parent)
-    if _pkg_root not in sys.path:
-        sys.path.insert(0, _pkg_root)
-    import app as flask_app  # noqa: E402  # type: ignore
+    import finn_tracker.app as flask_app
 
     # ── Start browser daemon thread ───────────────────────────────────────────
     url = f"http://localhost:{port}"

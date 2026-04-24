@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import sqlite3
-import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -20,13 +19,9 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 # Suppress Flask/werkzeug startup banner (finn-tracker prints its own message)
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-# ── Path setup ────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).parent
-sys.path.insert(0, str(ROOT))
-
-from ingest import ingest_file
-from models import mask_sensitive, DEFAULT_CATEGORIES, autocat
-from utils.db import _get_default_folders, _extract_pattern
+from finn_tracker.ingest import ingest_file
+from finn_tracker.models import mask_sensitive, DEFAULT_CATEGORIES, autocat
+from finn_tracker.utils.db import _get_default_folders, _extract_pattern
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
@@ -270,10 +265,7 @@ def _merge_into_session(masked_txns: List[dict]) -> List[dict]:
 
 @app.route("/")
 def index():
-    html_path = Path(__file__).parent / "finn_tracker" / "dashboard" / "index.html"
-    if not html_path.exists():
-        # Fallback for dev (running app.py directly from repo root)
-        html_path = Path(__file__).parent / "dashboard" / "index.html"
+    html_path = Path(__file__).parent / "dashboard" / "index.html"
     return html_path.read_text(encoding="utf-8"), 200, {"Content-Type": "text/html; charset=utf-8"}
 
 

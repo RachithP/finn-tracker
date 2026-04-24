@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from parsers.pdf_parser import (
+from finn_tracker.parsers.pdf_parser import (
     _detect_account_from_text,
     _parse_date,
     _parse_amount,
@@ -22,7 +22,7 @@ from parsers.pdf_parser import (
     _parse_text_lines,
     parse_pdf,
 )
-from models import Transaction
+from finn_tracker.models import Transaction
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -294,7 +294,7 @@ class TestParsePDF(unittest.TestCase):
         self.assertGreater(len(result.errors), 0)
         Path(f.name).unlink(missing_ok=True)
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_table_extraction_path(self, mock_pdfplumber):
         """Test the table extraction strategy with mocked pdfplumber."""
         mock_page = MagicMock()
@@ -317,7 +317,7 @@ class TestParsePDF(unittest.TestCase):
         self.assertEqual(len(result.transactions), 2)
         self.assertEqual(result.parser_used, "pdf_table")
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_text_fallback_when_no_tables(self, mock_pdfplumber):
         """Test text fallback when tables yield no transactions."""
         mock_page = MagicMock()
@@ -338,7 +338,7 @@ class TestParsePDF(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.parser_used, "pdf_text_fallback")
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_deduplication_in_parse_pdf(self, mock_pdfplumber):
         """Duplicate transactions from same page are deduplicated."""
         mock_page = MagicMock()
@@ -359,7 +359,7 @@ class TestParsePDF(unittest.TestCase):
         result = parse_pdf("/fake/statement.pdf")
         self.assertEqual(len(result.transactions), 1)
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_page_error_captured(self, mock_pdfplumber):
         """Errors on individual pages are captured but don't crash the parser."""
         mock_page = MagicMock()
@@ -376,7 +376,7 @@ class TestParsePDF(unittest.TestCase):
         self.assertGreater(len(result.errors), 0)
         self.assertIn("Page 1", result.errors[0])
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_account_label_fallback(self, mock_pdfplumber):
         """When no account detected from text, uses provided account_label."""
         mock_page = MagicMock()
@@ -395,7 +395,7 @@ class TestParsePDF(unittest.TestCase):
         if result.transactions:
             self.assertEqual(result.transactions[0].account, "My Account")
 
-    @patch("parsers.pdf_parser.pdfplumber")
+    @patch("finn_tracker.parsers.pdf_parser.pdfplumber")
     def test_empty_pdf_no_crash(self, mock_pdfplumber):
         """PDF with no pages doesn't crash."""
         mock_pdf = MagicMock()

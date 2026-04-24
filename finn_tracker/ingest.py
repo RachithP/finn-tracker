@@ -3,16 +3,13 @@ Ingestion Engine — routes files to the correct parser.
 Supports: .csv, .pdf
 All processing is local. No data sent to any server.
 """
-import sys
 import os
 from pathlib import Path
 from typing import List
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from models import ParseResult, Transaction
-from parsers.csv_parser import parse_csv
-from parsers.pdf_parser import parse_pdf
+from finn_tracker.models import ParseResult, Transaction
+from finn_tracker.parsers.csv_parser import parse_csv
+from finn_tracker.parsers.pdf_parser import parse_pdf
 
 
 SUPPORTED_EXTENSIONS = {".csv", ".pdf"}

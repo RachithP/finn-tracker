@@ -9,13 +9,11 @@ import hashlib
 import json
 import re
 import sqlite3
-import sys
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# ── Project root (utils/ → project root) ─────────────────────────────────────
-ROOT = Path(__file__).parent.parent
+# ── Project root ──────────────────────────────────────────────────────────────
 # Module-level fallback used only when db_path is not passed explicitly.
 # In normal operation, callers pass the path resolved from EXPENSE_TRACKER_DATA
 # (set by the CLI before importing app.py). This constant is kept for
@@ -29,8 +27,7 @@ def _get_default_folders() -> List[Path]:
     data_dir = Path(os.environ.get("EXPENSE_TRACKER_DATA", str(Path.home() / "Documents" / "finn-tracker")))
     return [data_dir / "expense", data_dir / "income"]
 
-sys.path.insert(0, str(ROOT))
-from models import DEFAULT_CATEGORIES, mask_sensitive, autocat  # noqa: E402
+from finn_tracker.models import DEFAULT_CATEGORIES, mask_sensitive, autocat
 
 
 # ── DB connection ─────────────────────────────────────────────────────────────
@@ -140,7 +137,7 @@ def scan_folders(
     Applies category overrides from the DB.
     Missing folders are silently skipped.
     """
-    from ingest import ingest_file  # local import — avoids circular issues at module level
+    from finn_tracker.ingest import ingest_file  # local import — avoids circular issues at module level
 
     overrides = overrides or {}
     folders = folders or _get_default_folders()

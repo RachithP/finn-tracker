@@ -22,11 +22,7 @@ Toggle on/off via Claude Desktop → Settings → MCP Servers.
 """
 import json
 import os
-import sys
 from pathlib import Path
-
-ROOT = Path(__file__).parent
-sys.path.insert(0, str(ROOT))
 
 # Resolve data dir before any utils.db import so _get_default_folders() picks it up.
 _data_dir = Path(os.environ.get("EXPENSE_TRACKER_DATA", Path.home() / "Documents" / "finn-tracker"))
@@ -35,7 +31,7 @@ DB_PATH = _data_dir / "finn_tracker.db"
 
 from mcp.server.fastmcp import FastMCP
 
-from utils.db import (
+from finn_tracker.utils.db import (
     dedup,
     filter_by_period,
     get_all_transactions,

@@ -11,7 +11,7 @@ from typing import Optional
 
 import pandas as pd
 
-from models import Transaction, ParseResult, mask_sensitive
+from finn_tracker.models import Transaction, ParseResult, mask_sensitive
 
 
 # ── Format signatures ──────────────────────────────────────────────────────────
