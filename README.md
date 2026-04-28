@@ -206,36 +206,6 @@ finn-tracker is developed and tested on **macOS** and **Ubuntu Linux**. CI runs 
 
 ---
 
-## Project Structure
-
-```
-app.py                      Flask backend + SQLite persistence
-ingest.py                   Routes .csv/.pdf files to the correct parser
-models.py                   Transaction dataclass, ParseResult, mask_sensitive()
-mcp_server.py               MCP server for Claude Desktop, Claude Code, Cursor, Kiro
-parsers/
-  csv_parser.py             Auto-detects Chase Bank, Chase Credit, BofA, Capital One, generic CSV
-  pdf_parser.py             Table + text-fallback extraction (pdfplumber)
-utils/
-  db.py                     Shared data-access layer (no Flask import) — used by app.py and mcp_server.py
-finn_tracker/
-  __main__.py               CLI entry point (finn-tracker command)
-  dashboard/
-    index.html              Entire frontend — vanilla JS, no build step
-sample_data/
-  generators.py             Synthetic CSV fixtures for tests and --demo mode
-tests/
-  test_app.py               Tests covering parsers, Flask routes, persistence, privacy masking
-  test_cli.py               Tests covering CLI entry point, packaging, data directory setup
-  test_db.py                Tests covering shared data access layer, analytics, filtering
-  test_ingest.py            Tests covering file routing, multi-file ingestion, merge
-  test_pdf_parser.py        Tests covering PDF parsing, account detection, table/text extraction
-```
-
-Data lives in `~/Documents/finn-tracker/` (created on first run, never in the install directory).
-
----
-
 ## Contributing
 
 Found a bug or want to add a bank parser? See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
