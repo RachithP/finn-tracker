@@ -26,7 +26,7 @@ A fully local expense tracking and visualization tool. Import bank CSVs and PDF 
 
 ### Step 1 — Install Python (if you haven't already)
 
-finn-tracker requires Python 3.9 or later. Check if you have it:
+`finn-tracker` requires Python 3.9 or later. Check if you have it:
 
 ```bash
 python3 --version
@@ -49,7 +49,7 @@ pip install finn-tracker
 
 > **Tip:** If `pip` isn't found, try `pip3 install finn-tracker` or `python3 -m pip install finn-tracker`.
 
-> **Optional — use a virtual environment:** If you want to keep finn-tracker isolated from other Python packages, create a virtual environment first:
+> **Optional — use a virtual environment:** If you want to keep `finn-tracker` isolated from other Python packages, create a virtual environment first:
 > ```bash
 > python3 -m venv ~/.venvs/finn-tracker
 > source ~/.venvs/finn-tracker/bin/activate
@@ -78,7 +78,7 @@ Then refresh the page — your transactions appear automatically.
 
 > **Not sure where to find those folders?**
 > - **macOS**: Open Finder, press **⌘ Shift H** to go to your home folder, then open `Documents → finn-tracker`.
-> - **Linux**: Open your file manager and navigate to `~/Documents/finn-tracker/`.
+> - **Ubuntu**: Open your file manager and navigate to `~/Documents/finn-tracker/`.
 
 ---
 
@@ -119,7 +119,7 @@ The assistant can answer spending questions and control the dashboard — filter
 **To enable it:**
 
 1. Install and start [llama-server](https://github.com/ggerganov/llama.cpp#quick-start) on port 8080 (the default)
-2. Launch finn-tracker — the chat button in the top-right corner will show **AI Ready**
+2. Launch `finn-tracker` — the chat button in the top-right corner will show **AI Ready**
 
 To use a different port: `LLAMA_CPP_URL=http://localhost:8081 finn-tracker`
 
@@ -202,7 +202,7 @@ python -m pytest tests/ -v
 
 ## Platform Support
 
-finn-tracker is developed and tested on **macOS** and **Ubuntu Linux**. CI runs on both platforms across Python 3.9, 3.11, and 3.12. Other Unix-like systems should work but are not officially tested. Windows is not supported.
+finn-tracker is developed and tested on **macOS** and **Ubuntu**. CI runs on both platforms across Python 3.9, 3.11, and 3.12. Other Unix-like systems should work but are not officially tested. Windows is not supported.
 
 ---
 
