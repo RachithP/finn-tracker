@@ -1,0 +1,16 @@
+name: finn-tracker
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - flask
+    - pandas
+    - pdfplumber
+    - pypdf
+    - reportlab
+    - requests
+    - pytest
+    - pytest-cov
