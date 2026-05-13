@@ -28,7 +28,7 @@ finn-tracker
 <python> -m pytest tests/test_app.py::TestPersistence::test_db_init_creates_tables -v
 ```
 
-All 324 tests live in `tests/`:
+All 472 tests live in `tests/`:
 - `test_app.py` — parsers, Flask routes, persistence, AI chat
 - `test_cli.py` — CLI, packaging
 - `test_db.py` — shared data access layer, analytics, period filtering
@@ -38,27 +38,27 @@ All 324 tests live in `tests/`:
 ## Architecture
 
 ```
-app.py              Flask backend + SQLite persistence layer + /chat endpoint
-ingest.py           Routes .csv/.pdf files to the right parser
-models.py           Transaction dataclass, ParseResult, mask_sensitive(), DEFAULT_CATEGORIES, autocat()
-utils/
-  db.py             Shared data-access layer (no Flask import) — used by app.py and mcp_server.py
-mcp_server.py       MCP server (stdio) for Claude Desktop / Claude Code / Cursor / Kiro
-parsers/
-  csv_parser.py     Auto-detects Chase Bank, Chase Credit, BofA, Capital One, or generic CSV
-  pdf_parser.py     Table + text-fallback extraction (pdfplumber)
 finn_tracker/
+  app.py            Flask backend + SQLite persistence layer + /chat endpoint
+  ingest.py         Routes .csv/.pdf files to the right parser
+  models.py         Transaction dataclass, ParseResult, mask_sensitive(), DEFAULT_CATEGORIES, autocat()
+  mcp_server.py     MCP server (stdio) for Claude Desktop / Claude Code / Cursor / Kiro
+  utils/
+    db.py           Shared data-access layer (no Flask import) — used by app.py and mcp_server.py
+  parsers/
+    csv_parser.py   Auto-detects Chase Bank, Chase Credit, BofA, Capital One, or generic CSV
+    pdf_parser.py   Table + text-fallback extraction (pdfplumber); posting-date aware
   dashboard/
-    index.html      Entire frontend — vanilla JS, no build step, ~1900 lines
+    index.html      Entire frontend — vanilla JS, no build step, ~2000 lines
 sample_data/
   generators.py     Synthetic CSV/PDF fixtures for tests and --demo mode (no real bank data)
 tests/
   test_app.py       Parsers, Flask routes, persistence, privacy masking, AI chat
   test_cli.py       CLI entry point, packaging, data directory setup
   test_db.py        Shared data access layer, analytics, period filtering
-  test_ingest.py    File routing, multi-file ingestion, merge, summary
+  test_ingest.py    File routing, multi-file ingestion
   test_pdf_parser.py  PDF parsing, account detection, table/text extraction
-~/Documents/finn-tracker/
+~/Documents/finn-tracker/         ← default; override with EXPENSE_TRACKER_DATA
   expense/          Auto-loaded CSVs/PDFs on every GET /transactions (expense folder)
   income/           Auto-loaded CSVs/PDFs on every GET /transactions (income folder)
   finn_tracker.db   SQLite DB (gitignored); created on first run
@@ -66,11 +66,11 @@ tests/
 
 ### Data flow
 
-1. `GET /transactions` → `_scan_default_folders()` re-parses all files in `~/Documents/finn-tracker/expense/` and `income/` on every request (no cache yet). Results merged with `_session["user_transactions"]` (manually imported files), deduplicated, and returned as JSON.
+1. `GET /transactions` → `_scan_default_folders()` scans files in `expense/` and `income/` using a per-file mtime cache (`_scan_cache` in `utils/db.py`) — unchanged files are skipped. Results merged with `_session["user_transactions"]` (manually imported files), deduplicated by `(date, merchant, amount, account)`, enriched with category overrides and learned rules, and returned as JSON.
 2. `POST /import/files` or `/import/folder` → files parsed, merged into `_session["user_transactions"]`, and written to the `user_transactions` SQLite table.
 3. On startup: `_init_db()` creates tables, `_load_session_from_db()` restores `_session` from DB.
 4. **AI Chat (frontend-first architecture)**:
-   - `GET /chat/config` → returns shared configuration (trendMonths, recentTxnLimit, topMerchantsPeriod, topMerchantsLimit)
+   - `GET /chat/config` → returns shared configuration (`maxTrendMonths`, `dbPath`)
    - Frontend fetches config on page load, computes aggregates (top merchants, category totals, monthly trend) from loaded transactions
    - `POST /chat` → frontend sends pre-computed context + user message; backend formats system prompt from provided data (no DB query), streams response from llama-server at `LLAMA_CPP_URL` (default `http://localhost:8080`)
    - Benefits: single source of truth (what user sees = what LLM sees), no duplicate DB queries, easy to tune context window
@@ -97,7 +97,7 @@ Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_conf
   "mcpServers": {
     "finn-tracker": {
       "command": "/path/to/your/python",
-      "args": ["/path/to/finn-tracker/mcp_server.py"]
+      "args": ["/path/to/finn-tracker/finn_tracker/mcp_server.py"]
     }
   }
 }
@@ -132,7 +132,7 @@ Four tables in `~/Documents/finn-tracker/finn_tracker.db`:
 | `user_transactions` | `txn_id` | Manually imported transactions (JSON blob) |
 | `learned_rules` | `pattern` | Merchant-pattern → category rules (auto-propagation) |
 
-Folder-scanned transactions (`~/Documents/finn-tracker/expense/`, `income/`) are **not** cached in the DB — they are re-parsed on every request.
+Folder-scanned transactions (`expense/`, `income/`) are **not** stored in the DB — they are re-scanned on every request, but an in-memory mtime cache (`_scan_cache` in `utils/db.py`) skips unchanged files within a server process lifetime.
 
 ### Category learning system
 
@@ -147,15 +147,18 @@ When a user assigns a category to a transaction, `POST /categories/update` also 
 6. Remove remaining standalone 4+ digit sequences
 7. Collapse whitespace; take first 2 tokens
 
-**Rule application priority in `normalize()` (frontend):**
-1. Explicit server-side category override (anything not "Uncategorized") — highest
-2. Learned rule match (only when server returned "Uncategorized")
-3. Static `autocat()` regex RULES
-4. "Uncategorized"
+**Rule application priority — server then frontend:**
+1. Server: explicit category override from `category_overrides` table — highest
+2. Server: learned rule match from `learned_rules` table
+3. Server: `autocat()` static regex rules (200+ patterns)
+4. Frontend: in-memory learned rule (catches newly created rules before next page load)
+5. "Uncategorized"
+
+The server applies steps 1–3 in `_enrich()` before returning any transaction. The frontend `RULES = []` — autocat runs server-side only.
 
 `POST /categories/batch-update` is a fire-and-forget endpoint used when a new learned rule propagates to similar transactions — it does NOT create new rules (avoids cascading bad rules).
 
-`txn_id` is a stable 12-char MD5 hash of `(date, merchant, amount, account)` — computed by `_make_txn_id()` in `app.py`.
+`txn_id` is a stable 12-char MD5 hash of `(date, merchant, amount, account)` — computed by `make_txn_id()` in `utils/db.py` and imported by `app.py`.
 
 ### Period filtering (frontend)
 
