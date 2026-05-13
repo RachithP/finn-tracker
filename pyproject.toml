@@ -8,12 +8,11 @@ version = "0.0.1"
 description = "Privacy-first local expense tracker — import bank CSVs/PDFs, auto-categorize, explore trends. No data ever leaves your machine."
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
 keywords = ["finance", "expense", "privacy", "local", "csv", "pdf"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
