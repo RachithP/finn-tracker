@@ -159,44 +159,14 @@ Once connected, you can ask Claude things like "summarize my spending this month
 
 ## How It Works
 
-### Data flow
-1. Files in `~/Documents/finn-tracker/expense/` and `income/` are scanned on every `GET /transactions` request; unchanged files are served from an in-memory mtime cache and not re-parsed.
-2. Manually imported files (via the dashboard) are parsed once and persisted to SQLite.
-3. All transactions are deduplicated by a stable hash of `(date, merchant, amount, account)`.
+1. Files in your expense/income folders are scanned on every page load; unchanged files are cached in memory and not re-parsed.
+2. Manually imported files are parsed once and persisted to SQLite.
+3. All transactions are deduplicated by `(date, merchant, amount, account)`.
 4. Category overrides and learned merchant rules survive server restarts via SQLite.
 
-### Category learning
-When you manually categorize a transaction, the app extracts a normalized merchant pattern and saves it as a rule. Future transactions matching that pattern are auto-categorized.
+When you manually categorize a transaction, the app saves a normalized merchant pattern as a rule. Future transactions matching that pattern are auto-categorized.
 
-### Sign convention
-`amount` is **negative for charges/debits, positive for credits/payments** — consistent throughout parsers and the frontend.
-
-### Resetting your data
-
-Two buttons in the top-right corner of the dashboard let you clear data at different scopes:
-
-| Button | What it clears | What it keeps |
-|---|---|---|
-| **🗑 Clear Session** | Transactions imported during the current run (via the dashboard's import button) | Auto-scan folders, SQLite data, learned rules, category overrides |
-| **🗑 Clear All** | Everything in SQLite — all transactions, category overrides, and learned merchant rules | Your original CSV/PDF files (they reload from auto-scan folders on next refresh) |
-
-Use **Clear Session** to undo a bad import without losing your history. Use **Clear All** to start completely fresh. Both actions ask for confirmation before proceeding.
-
----
-
-## Running Tests
-
-```bash
-pip install finn-tracker[dev]
-python -m pytest tests/ -v
-```
-
-472 tests across five files:
-- `tests/test_app.py` — parsers, Flask routes, persistence, privacy masking, AI chat endpoints
-- `tests/test_cli.py` — CLI entry point, packaging, data directory setup
-- `tests/test_db.py` — shared data access layer, analytics, period filtering, folder scanning
-- `tests/test_ingest.py` — file routing, multi-file ingestion
-- `tests/test_pdf_parser.py` — PDF statement parsing, account detection, table/text extraction, per-bank integration tests
+Use **🗑 Clear Session** to undo a bad import without losing your history. Use **🗑 Clear All** to start completely fresh.
 
 ---
 

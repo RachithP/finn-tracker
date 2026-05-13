@@ -1,325 +1,87 @@
-# Scaling & Performance Improvements
+# Scaling & Performance
 
-This document outlines performance optimizations and scaling improvements to implement when finn-tracker grows beyond ~10K transactions or experiences slow query times.
+Reference for when finn-tracker grows beyond ~10K transactions or feels slow.
 
----
-
-## Current Architecture
-
-- **Database**: SQLite with WAL mode enabled
-- **Query pattern**: Full table scans on every request (no indexes)
-- **Data loading**: Auto-scan folders re-parse only changed files (mtime cache in `utils/db.py`); unchanged files are skipped within a server process lifetime
-- **AI Chat**: Frontend computes aggregates and sends to backend (no DB query in /chat handler)
-- **Caching**: In-memory mtime cache for folder-scanned files; all aggregations still computed on-demand from the raw transaction list
-
-**Works well for**: <10K transactions, local-only usage, single user
-
+**Works well for**: <10K transactions, local-only, single user  
 **Bottlenecks emerge at**: >50K transactions, slow disk I/O, concurrent MCP + web dashboard usage
-
----
-
-## AI Chat Architecture (Implemented)
-
-The AI chat uses a **frontend-first** approach to eliminate duplicate data fetching:
-
-1. **Shared config**: `/chat/config` endpoint serves configuration (trend months, transaction limits, periods)
-2. **Frontend aggregation**: Dashboard computes summaries using existing functions
-3. **Context passing**: Frontend sends pre-computed data with each chat message
-4. **Stateless backend**: `/chat` handler formats prompts from frontend data, no DB access
-
-**Benefits:**
-- Single source of truth (what user sees = what LLM sees)
-- No duplicate DB queries (frontend already loaded transactions)
-- Easy to tune context window (change `/chat/config` values)
-- Backend stays simple and testable
-
-**To scale later**: Change `maxTrendMonths` in the `/chat/config` endpoint (`app.py`). The frontend caps its monthly-trend history to that value and automatically adapts the context it sends to `/chat`.
 
 ---
 
 ## Priority 1: Database Indexes
 
-**Problem**: All queries perform full table scans. Filtering by date, category, or merchant requires iterating through every transaction.
+**Problem**: `user_transactions` stores rows as JSON blobs with no indexes. All filtering (by date, category, merchant) scans every row.
 
-**Solution**: Add indexes to `user_transactions` table.
+**Solution**: Add expression indexes on `json_extract(txn_json, '$.date')`, `$.category`, `$.merchant`, `$.amount` in `_init_db()`.
 
-### Implementation
-
-Add to `_init_db()` in `app.py` (after the `CREATE TABLE user_transactions` statement):
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_txn_date ON user_transactions(
-    json_extract(txn_json, '$.date')
-);
-
-CREATE INDEX IF NOT EXISTS idx_txn_category ON user_transactions(
-    json_extract(txn_json, '$.category')
-);
-
-CREATE INDEX IF NOT EXISTS idx_txn_merchant ON user_transactions(
-    json_extract(txn_json, '$.merchant')
-);
-
-CREATE INDEX IF NOT EXISTS idx_txn_amount ON user_transactions(
-    json_extract(txn_json, '$.amount')
-);
-```
-
-**Impact**: 10-100x speedup for filtered queries (period filters, category drill-down, merchant search).
-
-**Tradeoff**: Slightly slower writes (negligible for import operations), ~10-20% larger DB file size.
+**Impact**: 10–100x speedup for filtered queries.  
+**Tradeoff**: ~10–20% larger DB file, slightly slower writes (negligible for import-sized batches).
 
 ---
 
-## Priority 2: Cache Auto-Scan Results ✅ (implemented — in-memory)
+## Priority 2: Persist mtime Cache Across Restarts ✅ (in-memory implemented)
 
-**Problem**: Every `/transactions` request re-parses all CSVs in `~/Documents/finn-tracker/expense/` and `income/`, even if files haven't changed.
+**Problem**: The current in-memory mtime cache (`_scan_cache` in `utils/db.py`) is lost on server restart, so the first request after a restart re-parses all files.
 
-**Solution**: Track file modification times and skip parsing if unchanged.
+**Solution**: Persist parsed-file mtimes to a `parsed_files` SQLite table; check it before parsing on startup.
 
-> **Status**: An in-memory per-file mtime cache (`_scan_cache` in `utils/db.py`) was added in v0.0.1. Unchanged files are skipped on subsequent requests within the same server process. The DB-backed approach below is still the recommended upgrade path for persistence across restarts.
-
-### Implementation
-
-Add a new table to track parsed files:
-
-```sql
-CREATE TABLE IF NOT EXISTS parsed_files (
-    file_path TEXT PRIMARY KEY,
-    mtime     REAL NOT NULL,
-    parsed_at TEXT NOT NULL
-);
-```
-
-Modify `scan_folders()` in `utils/db.py`:
-
-```python
-def _should_reparse(file_path: Path) -> bool:
-    """Check if file needs reparsing based on mtime."""
-    with _db_conn() as conn:
-        row = conn.execute(
-            "SELECT mtime FROM parsed_files WHERE file_path = ?",
-            (str(file_path),)
-        ).fetchone()
-        if not row:
-            return True
-        return file_path.stat().st_mtime > row["mtime"]
-
-def _mark_parsed(file_path: Path) -> None:
-    """Record that a file has been parsed."""
-    with _db_conn() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO parsed_files (file_path, mtime, parsed_at) VALUES (?, ?, ?)",
-            (str(file_path), file_path.stat().st_mtime, datetime.now().isoformat())
-        )
-```
-
-Then wrap the parsing loop:
-
-```python
-for folder in folders:
-    for file_path in folder.iterdir():
-        if _should_reparse(file_path):
-            result = ingest_file(str(file_path), ...)
-            # ... existing logic ...
-            _mark_parsed(file_path)
-```
-
-**Impact**: 50-90% reduction in `/transactions` response time after first load.
-
-**Tradeoff**: Manual file edits won't be detected unless mtime changes (rare edge case).
+**Impact**: 50–90% faster first request after restart.  
+**Tradeoff**: Stale cache if files are edited externally without touching mtime (rare).
 
 ---
 
 ## Priority 3: Aggregate Caching
 
-**Problem**: Dashboard summary cards, category totals, and monthly trends are recomputed from scratch on every page load.
+**Problem**: Summary cards, category totals, and monthly trends are recomputed from every transaction on every page load.
 
-**Solution**: Cache aggregates in a separate table, invalidate on new transactions.
+**Solution**: Cache aggregates in a `aggregate_cache` SQLite table with a TTL (e.g. 5 minutes); invalidate on new imports.
 
-### Implementation
-
-Add a cache table:
-
-```sql
-CREATE TABLE IF NOT EXISTS aggregate_cache (
-    cache_key TEXT PRIMARY KEY,
-    value     TEXT NOT NULL,
-    expires   TEXT NOT NULL
-);
-```
-
-Wrap expensive aggregations:
-
-```python
-def _get_cached_aggregate(key: str, compute_fn, ttl_seconds=300):
-    """Return cached value or compute and cache it."""
-    with _db_conn() as conn:
-        row = conn.execute(
-            "SELECT value, expires FROM aggregate_cache WHERE cache_key = ?", (key,)
-        ).fetchone()
-        if row and datetime.fromisoformat(row["expires"]) > datetime.now():
-            return json.loads(row["value"])
-        
-        result = compute_fn()
-        expires = (datetime.now() + timedelta(seconds=ttl_seconds)).isoformat()
-        conn.execute(
-            "INSERT OR REPLACE INTO aggregate_cache (cache_key, value, expires) VALUES (?, ?, ?)",
-            (key, json.dumps(result), expires)
-        )
-        return result
-```
-
-Use for:
-- Monthly trend (cache key: `trend_{period}`)
-- Category totals (cache key: `categories_{period}`)
-- Top merchants (cache key: `top_merchants_{period}`)
-
-**Impact**: 2-5x speedup for dashboard loads with no data changes.
-
-**Tradeoff**: Stale data for up to 5 minutes (configurable TTL).
+**Impact**: 2–5x faster dashboard loads with no data changes.  
+**Tradeoff**: Up to 5-minute stale window (configurable).
 
 ---
 
 ## Priority 4: Tune AI Chat Context Window
 
-**Current design**: The AI chat uses a frontend-first approach. The frontend computes a monthly trend capped at `maxTrendMonths` (currently 36) and sends it with every chat message. The `/chat` handler formats the data into a system prompt — no DB queries at chat time.
+**Problem**: Sending too many months of trend history to the LLM increases latency linearly.
 
-**Why a cap**: Sending unlimited history to the LLM increases latency linearly. 36 months covers most practical queries while keeping prompts manageable.
+**Solution**: Change `maxTrendMonths` in the `/chat/config` endpoint (`app.py`). The frontend caps its monthly-trend history to that value automatically.
 
-**Why frontend-computed**: The LLM interprets time periods from user queries ("last month", "this year") using the pre-aggregated monthly data. This keeps the backend simple and avoids duplicate DB queries.
-
-### When to adjust
-
-**Increase `maxTrendMonths`** if:
-- Users frequently ask about data older than 3 years
-- LLM responses say "I don't have data for that period"
-- You have a faster LLM or more RAM
-
-**Decrease `maxTrendMonths`** if:
-- Chat responses are slow (>5 seconds)
-- You have many months of dense data
-- Running on low-memory hardware
-
-### Implementation
-
-Edit the `/chat/config` endpoint in `app.py`:
-
-```python
-@app.route("/chat/config", methods=["GET"])
-def chat_config():
-    return jsonify({
-        "maxTrendMonths": 36,   # ← change this
-        "dbPath": str(_get_db_path()),
-    })
-```
-
-The frontend reads `maxTrendMonths` at page load and caps its monthly-trend history accordingly. No other code changes needed.
-
-**Impact**: Larger context = more accurate answers for historical queries, but slower responses.
-
-**Tradeoff**: Linear increase in LLM latency with context size.
+**Impact**: Halving the context roughly halves chat latency.  
+**Tradeoff**: Less historical data available for LLM answers.
 
 ---
 
 ## Priority 5: Lazy-Load Transactions in Frontend
 
-**Problem**: Dashboard loads all transactions into memory on page load, even if user only views summary cards.
+**Problem**: All transactions load into memory on page load, even if the user only views summary cards.
 
-**Solution**: Paginate `/transactions` endpoint and load on-demand.
+**Solution**: Paginate `GET /transactions` with `offset` + `limit` params; load additional pages on demand in the frontend.
 
-### Implementation
-
-Add pagination params to `/transactions`:
-
-```python
-@app.route("/transactions", methods=["GET"])
-def get_transactions():
-    offset = int(request.args.get("offset", 0))
-    limit = int(request.args.get("limit", 1000))
-    
-    # ... existing logic ...
-    
-    return jsonify({
-        "transactions": all_txns[offset:offset+limit],
-        "total": len(all_txns),
-        "offset": offset,
-        "limit": limit
-    })
-```
-
-Update frontend to fetch in batches:
-
-```javascript
-async function loadTransactions(offset = 0, limit = 1000) {
-    const resp = await fetch(`/transactions?offset=${offset}&limit=${limit}`);
-    const data = await resp.json();
-    // Append to existing transactions
-    return data;
-}
-```
-
-**Impact**: 10x faster initial page load for users with >10K transactions.
-
-**Tradeoff**: Requires frontend refactor to handle paginated data.
+**Impact**: 10x faster initial page load for >10K transactions.  
+**Tradeoff**: Requires frontend refactor to handle paginated state.
 
 ---
 
-## Priority 6: Move to PostgreSQL (Optional)
+## Priority 6: PostgreSQL (Optional)
 
 **When**: >100K transactions, multiple concurrent users, or need for full-text search.
 
-**Why**: SQLite's JSON functions are slower than Postgres's JSONB, and WAL mode has concurrency limits.
+**Why**: SQLite WAL mode has concurrency limits; Postgres JSONB operators are faster for complex queries.
 
-**Migration path**:
-1. Add `psycopg2` dependency
-2. Create a `db_adapter.py` abstraction layer
-3. Implement Postgres-specific queries with JSONB operators
-4. Provide a migration script: `finn-tracker migrate-to-postgres`
+**Migration path**: add `psycopg2`, create a `db_adapter.py` abstraction, implement Postgres-specific queries, provide a `finn-tracker migrate-to-postgres` command.
 
-**Impact**: 5-10x speedup for complex queries, better concurrency.
-
-**Tradeoff**: Requires Postgres installation, loses "zero-config" simplicity.
-
----
-
-## Testing Performance Improvements
-
-Use the `--demo` mode to load synthetic sample data:
-
-```bash
-finn-tracker --demo
-```
-
-To benchmark with larger datasets, generate fixtures directly using `sample_data/generators.py` and place the output CSVs/PDFs in your data directory before launching.
-
-Benchmark query times:
-
-```python
-import time
-start = time.time()
-# ... run query ...
-print(f"Query took {time.time() - start:.2f}s")
-```
-
-Target benchmarks:
-- `/transactions` (full load): <500ms for 10K txns, <2s for 50K txns
-- Category aggregation: <100ms for 10K txns
-- Monthly trend: <200ms for 10K txns
+**Impact**: 5–10x speedup for complex queries, better concurrency.  
+**Tradeoff**: Requires Postgres installation, loses zero-config simplicity.
 
 ---
 
 ## Summary
 
-| Priority | Improvement | Effort | Impact | When to implement |
+| Priority | Improvement | Effort | Impact | When |
 |---|---|---|---|---|
-| 1 | Database indexes | 30 min | High | >10K transactions |
-| 2 | Cache auto-scan | 2 hours | High | >5K transactions or slow disk |
+| 1 | DB indexes | 30 min | High | >10K transactions |
+| 2 | Persist mtime cache | 1 hour | Medium | Slow restarts |
 | 3 | Aggregate caching | 3 hours | Medium | >20K transactions |
-| 4 | Tune AI context window | 5 min | Medium | When chat is slow or missing data |
+| 4 | Tune AI context window | 5 min | Medium | Chat is slow |
 | 5 | Lazy-load frontend | 4 hours | High | >10K transactions |
-| 6 | Postgres migration | 8 hours | Very High | >100K transactions |
-
-**Start with Priority 4** (tune context) — it's a 1-line config change to balance latency vs. data coverage.
-
-**Implement 1-3 together** when you hit performance issues — they're complementary and share DB schema changes.
+| 6 | PostgreSQL | 8 hours | Very High | >100K transactions |

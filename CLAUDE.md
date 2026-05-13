@@ -160,19 +160,11 @@ The server applies steps 1–3 in `_enrich()` before returning any transaction. 
 
 `txn_id` is a stable 12-char MD5 hash of `(date, merchant, amount, account)` — computed by `make_txn_id()` in `utils/db.py` and imported by `app.py`.
 
-### Period filtering (frontend)
-
-`filterByPeriod(txns, period)` in `index.html` gates **all** dashboard components (cards, bar chart, donut, table). Supported periods: `"1m"`, `"3m"`, `"6m"`, `"ytd"`, `"thismonth"`, `"lastmonth"`, `"all"`, `"custom"`. The "Custom" button in the period bar reveals inline date pickers (`f-date-from`, `f-date-to`); their `onchange` fires `renderAll()`. `getFilteredRows()` (table-only) adds keyword, category, account, and type filters on top of `filterByPeriod()`.
-
 ### Privacy
 
 `mask_sensitive()` in `models.py` masks 16-digit card numbers, 8–12 digit account numbers, and SSNs. It is applied before any JSON response leaves the server and again in the PDF export builder. The server binds to `127.0.0.1` only.
 
 The `/chat` endpoint connects to `LLAMA_CPP_URL` (default `http://localhost:8080`) — a locally-running llama-server. No transaction data is sent to any external service. Set `LLAMA_CPP_URL` in the environment to point to a different local port if needed.
-
-### Dashboard theme
-
-`finn_tracker/dashboard/index.html` supports dark mode (steipete-inspired: `#212737` bg, `#d96200` orange accent) and light mode (original indigo theme: `#f1f5f9` bg, `#6366f1` primary). The active theme is stored in `localStorage` under the key `"theme"` (`"dark"` or `"light"`). CSS variables are defined in `:root` (dark defaults) and `[data-theme="light"]` override block. SVG chart colors are read at render time via `_cssVar()` so they respond to theme changes without a page reload.
 
 ---
 
