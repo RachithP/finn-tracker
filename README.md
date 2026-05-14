@@ -7,6 +7,8 @@
 
 A fully local expense tracking and visualization tool. Import bank CSVs and PDF statements, auto-categorize transactions, and explore spending trends through an interactive dashboard. **No data ever leaves your machine.**
 
+![finn-tracker dashboard demo](docs/demo.gif)
+
 ---
 
 ## Features
