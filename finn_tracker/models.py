@@ -221,6 +221,10 @@ def mask_sensitive(value: str) -> str:
     value = re.sub(r'(?<!\d)\d{13,19}(?!\d)', '****-****-****-####', value)
     # Account numbers (8-12 digits standalone)
     value = re.sub(r'(?<!\d)\d{8,12}(?!\d)', '***######', value)
+    # Account numbers — grouped in exact 4-digit chunks (e.g. "1234-5678-9012").
+    # Groups must be exactly 4 digits (not 2-6) so this can't false-positive on
+    # dates like "01-15-2024" (2-2-4 grouping).
+    value = re.sub(r'(?<!\d)\d{4}[\s\-]\d{4}(?:[\s\-]\d{4})?(?!\d)', '***######', value)
     # SSN
     value = re.sub(r'(?<!\d)\d{3}[-\s]?\d{2}[-\s]?\d{4}(?!\d)', '***-**-####', value)
     return value

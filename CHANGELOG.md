@@ -11,6 +11,8 @@ All notable changes to finn-tracker are documented here.
 - MCP server no longer returns `source_file` — statement filenames never leave the machine (`get_transactions` output is now a strict field whitelist)
 - Import endpoints mask error messages and `files_scanned` filenames before responding
 - CSV and PDF exports re-mask merchant, account, and source filename on write (defense in depth)
+- Transactions loaded from the SQLite `user_transactions` table are now re-masked on every read (both the Flask session loader and the shared MCP/analytics query layer) — closes a gap where rows persisted before masking coverage existed would still leak account/source_file
+- `mask_sensitive()` now catches account numbers grouped in exact 4-digit chunks (e.g. `1234-5678-9012`), narrowly scoped so it can't false-positive on dates
 
 ### Changed
 

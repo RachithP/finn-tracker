@@ -30,7 +30,7 @@ finn-tracker
 <python> -m pytest tests/test_app.py::TestPersistence::test_db_init_creates_tables -v
 ```
 
-All 490 tests live in `tests/`:
+All 495 tests live in `tests/`:
 - `test_app.py` — parsers, Flask routes, persistence, AI chat
 - `test_cli.py` — CLI, packaging
 - `test_db.py` — shared data access layer, analytics, period filtering

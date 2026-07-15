@@ -154,6 +154,20 @@ class TestMaskSensitive(unittest.TestCase):
         masked = mask_sensitive("Card 6212345678901234567 charge")
         self.assertNotIn("6212345678901234567", masked)
 
+    def test_masks_grouped_account_number_12digit(self):
+        masked = mask_sensitive("Account: 1234-5678-9012")
+        self.assertNotIn("1234-5678-9012", masked)
+
+    def test_masks_grouped_account_number_8digit(self):
+        masked = mask_sensitive("Account 1234-5678 opened")
+        self.assertNotIn("1234-5678", masked)
+
+    def test_grouped_account_regex_does_not_mask_dates(self):
+        # Regression guard: the grouped-account pattern only matches exact
+        # 4-digit groups, so a 2-2-4 grouped date must pass through untouched.
+        self.assertEqual(mask_sensitive("Posted 01-15-2024"), "Posted 01-15-2024")
+        self.assertEqual(mask_sensitive("Trans date 2024-01-15 ref"), "Trans date 2024-01-15 ref")
+
     def test_last4_account_label_not_masked(self):
         # Policy: bank-style last-4 labels stay readable so accounts are distinguishable.
         self.assertEqual(mask_sensitive("Chase ••1234"), "Chase ••1234")
@@ -1300,6 +1314,23 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(len(flask_app._session["user_transactions"]), 1)
         self.assertEqual(flask_app._session["user_transactions"][0]["txn_id"], "tx001")
         self.assertAlmostEqual(flask_app._session["user_transactions"][0]["amount"], -89.47)
+
+    def test_legacy_unmasked_user_transaction_remasked_on_load(self):
+        # Simulates a row persisted before masking coverage existed (or by
+        # any future write path that forgets to mask): _db_save_user_transactions
+        # writes the dict verbatim, with no masking at that layer. Loading it
+        # back (server restart / _load_session_from_db) must re-mask account
+        # and source_file rather than serving the raw values forever.
+        txn = {"txn_id": "legacy001", "date": "2024-01-01", "merchant": "STORE",
+               "amount": -10.0, "category": "Shopping",
+               "account": "statement_123456789012",
+               "source_file": "stmt_4111111111111111.csv",
+               "source_folder": "expense"}
+        flask_app._db_save_user_transactions([txn])
+        self._reload_session()
+        loaded = flask_app._session["user_transactions"][0]
+        self.assertNotIn("123456789012", loaded["account"])
+        self.assertNotIn("4111111111111111", loaded["source_file"])
 
     def test_user_transactions_no_duplicate_insert(self):
         txn = {"txn_id": "tx_dup", "date": "2024-02-01", "merchant": "NETFLIX",

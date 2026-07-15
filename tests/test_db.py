@@ -258,6 +258,24 @@ class TestLoadUserTransactions(unittest.TestCase):
         result = _load_user_transactions(Path("/nonexistent/path/db.sqlite"), {})
         self.assertEqual(result, [])
 
+    def test_legacy_unmasked_row_remasked_on_load(self):
+        # A row written before masking coverage existed (or by any writer that
+        # skips it) must not leak account/source_file through this — the only
+        # read path MCP tools use — on every subsequent load.
+        txn = {"txn_id": "legacy001", "date": "2024-01-15", "merchant": "STORE",
+               "amount": -50.0, "account": "statement_123456789012",
+               "source_file": "stmt_4111111111111111.csv"}
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT INTO user_transactions (txn_id, source_file, txn_json) VALUES (?, ?, ?)",
+            ("legacy001", "stmt_4111111111111111.csv", json.dumps(txn))
+        )
+        conn.commit()
+        conn.close()
+        result = _load_user_transactions(self.db_path, {})
+        self.assertNotIn("123456789012", result[0]["account"])
+        self.assertNotIn("4111111111111111", result[0]["source_file"])
+
 
 class TestDedup(unittest.TestCase):
 

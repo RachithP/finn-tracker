@@ -40,7 +40,7 @@ This keeps real bank files out of the repo entirely. Generated CSV files in `sam
 <python> -m pytest tests/ -v
 ```
 
-All 490 tests live in `tests/`:
+All 495 tests live in `tests/`:
 - `test_app.py` and `test_cli.py` — parsers, Flask routes, persistence, privacy masking, CLI
 - `test_db.py` — shared data access layer, analytics, period filtering
 - `test_ingest.py` — file routing, multi-file ingestion

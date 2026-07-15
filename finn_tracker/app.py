@@ -20,7 +20,10 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 from finn_tracker.ingest import ingest_file
 from finn_tracker.models import mask_sensitive, DEFAULT_CATEGORIES, autocat
-from finn_tracker.utils.db import _get_default_folders, _extract_pattern, make_txn_id, dedup, scan_folders
+from finn_tracker.utils.db import (
+    _get_default_folders, _extract_pattern, make_txn_id, dedup, scan_folders,
+    _remask_persisted_fields,
+)
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
@@ -99,7 +102,7 @@ def _load_session_from_db() -> None:
             for row in conn.execute("SELECT name FROM custom_categories ORDER BY id")
         ]
         _session["user_transactions"] = [
-            json.loads(row["txn_json"])
+            _remask_persisted_fields(json.loads(row["txn_json"]))
             for row in conn.execute("SELECT txn_json FROM user_transactions ORDER BY id")
         ]
         _session["learned_rules"] = _db_load_learned_rules(conn)
