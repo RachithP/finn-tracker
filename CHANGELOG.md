@@ -18,6 +18,10 @@ All notable changes to finn-tracker are documented here.
 
 - Tooling migrated from conda to uv: install/dev docs, CI workflows, and packaging (`environment.yml` removed; `mcp` added to dev extras on Python ≥3.10)
 
+### Categorization
+
+- Added Education and Fitness categories — Education covers Udemy, edX, Khan Academy, Coursera, Duolingo, LeetCode, Chegg, and tuition/student-loan keywords; Fitness covers gyms, yoga/pilates/barre studios, Peloton, and climbing gyms (previously lumped into Health & Medical or Entertainment)
+
 ## [0.0.1] - 2026-05-13
 
 Initial release.
