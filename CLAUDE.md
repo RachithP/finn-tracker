@@ -93,7 +93,7 @@ Shared query layer with no Flask dependency. `app.py` imports folder-scanning an
 
 `mcp_server.py` exposes expense data as an MCP server (stdio transport). Used by Claude Desktop, Claude Code, Cursor, Kiro, and other MCP-compatible clients. Runs natively — never inside the Flask process.
 
-Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Claude Desktop config (`/path_to_claude_installation/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
