@@ -210,12 +210,19 @@ def mask_sensitive(value: str) -> str:
     """Mask account numbers, card numbers, SSNs from any string."""
     if not value:
         return value
-    # Card numbers (16 digits)
-    value = re.sub(r'\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b', '****-****-****-####', value)
+    # Digit-lookarounds instead of \b: underscores/letters glued to digits
+    # (e.g. "stmt_123456789012.csv") defeat \b-based matching.
+    # Card numbers — 16-digit (4-4-4-4 grouping or contiguous)
+    value = re.sub(r'(?<!\d)\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}(?!\d)', '****-****-****-####', value)
+    # Card numbers — Amex 15-digit (4-6-5 grouping or contiguous)
+    value = re.sub(r'(?<!\d)\d{4}[\s\-]?\d{6}[\s\-]?\d{5}(?!\d)', '****-****-****-####', value)
+    # Card numbers — any remaining 13-19 contiguous digits
+    # (13-digit Visa, 14-digit Diners, 16-19 digit UnionPay/Maestro)
+    value = re.sub(r'(?<!\d)\d{13,19}(?!\d)', '****-****-****-####', value)
     # Account numbers (8-12 digits standalone)
-    value = re.sub(r'\b\d{8,12}\b', '***######', value)
+    value = re.sub(r'(?<!\d)\d{8,12}(?!\d)', '***######', value)
     # SSN
-    value = re.sub(r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b', '***-**-####', value)
+    value = re.sub(r'(?<!\d)\d{3}[-\s]?\d{2}[-\s]?\d{4}(?!\d)', '***-**-####', value)
     return value
 
 
@@ -232,13 +239,16 @@ class Transaction:
     transaction_id: str = ""  # Optional bank-assigned ID
 
     def to_dict(self) -> dict:
+        # account and source_file are masked too: fallback paths use the raw
+        # filename stem, which can embed a full account/card number.
+        # Last-4 labels like "Chase ••4231" are intentionally left readable.
         return {
             "date": self.date.isoformat(),
             "merchant": mask_sensitive(self.merchant),
             "amount": round(self.amount, 2),
             "category": self.category,
-            "account": self.account,
-            "source_file": self.source_file,
+            "account": mask_sensitive(self.account),
+            "source_file": mask_sensitive(self.source_file),
             "transaction_id": self.transaction_id,
         }
 

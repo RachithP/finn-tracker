@@ -58,6 +58,16 @@ mcp = FastMCP(
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
+# Fields exposed to MCP clients. source_file (the real statement filename, which
+# can embed account last-4 or full numbers) is deliberately excluded so
+# filenames never leave this machine.
+MCP_TXN_FIELDS = ("date", "merchant", "amount", "category", "account", "source_folder", "txn_id")
+
+
+def _project(t: dict) -> dict:
+    """Restrict a transaction dict to the MCP-exposed field whitelist."""
+    return {k: t[k] for k in MCP_TXN_FIELDS if k in t}
+
 
 @mcp.tool()
 def get_transactions(
@@ -87,7 +97,7 @@ def get_transactions(
         txns = [t for t in txns if account.lower() in t.get("account", "").lower()]
 
     txns_sorted = sorted(txns, key=lambda t: t.get("date", ""), reverse=True)
-    return json.dumps(txns_sorted[:limit], indent=2)
+    return json.dumps([_project(t) for t in txns_sorted[:limit]], indent=2)
 
 
 @mcp.tool()
