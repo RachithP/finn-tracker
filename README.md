@@ -118,7 +118,7 @@ finn-tracker ships an [MCP server](https://modelcontextprotocol.io) that lets AI
 
 **To connect Claude Desktop:**
 
-Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Add this to your Claude config:
 
 ```json
 {
@@ -139,8 +139,8 @@ Once connected, you can ask Claude things like "summarize my spending this month
 
 | Format | Auto-detected banks |
 |---|---|
-| CSV | Chase Bank (checking), Chase Credit, Bank of America, Capital One, generic |
-| PDF | Capital One, Chase, Bank of America (Visa Signature), and any table-based statement (pdfplumber) |
+| CSV | Chase Bank, Chase Credit, Bank of America, Capital One, generic |
+| PDF | Capital One, Chase, Bank of America, and any table-based statement (pdfplumber) |
 
 ---
 
@@ -166,7 +166,5 @@ finn-tracker is developed and tested on **macOS** and **Ubuntu**. CI runs on bot
 ## Contributing
 
 Found a bug or want to add a bank parser? See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
-
-For performance optimization guidance when scaling beyond 10K transactions, see [SCALING.md](SCALING.md).
 
 [Open an issue on GitHub](https://github.com/RachithP/finn-tracker/issues) — include the output of `finn-tracker --version`.
