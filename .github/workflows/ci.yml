@@ -17,12 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
-      - name: Create venv (uv downloads the Python version if needed)
+      - name: Sync dependencies (uv downloads the Python version if needed)
         run: |
-          uv venv --python ${{ matrix.python-version }}
+          uv sync --extra dev --locked --python ${{ matrix.python-version }}
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Install dependencies
-        run: uv pip install -e ".[dev]"
       - name: Audit dependencies
         run: uv pip install pip-audit && pip-audit --skip-editable
         continue-on-error: true
@@ -44,12 +42,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
-      - name: Create venv
+      - name: Sync dependencies
         run: |
-          uv venv --python 3.12
+          uv sync --extra dev --locked --python 3.12
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-      - name: Install dependencies
-        run: uv pip install -e ".[dev]"
       - name: Generate coverage JSON
         env:
           EXPENSE_TRACKER_DATA: ${{ runner.temp }}/finn-tracker-test

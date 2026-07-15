@@ -12,20 +12,22 @@ Dev setup uses [uv](https://docs.astral.sh/uv/) (see the [uv installation docs](
 ```bash
 git clone https://github.com/RachithP/finn-tracker.git
 cd finn-tracker
-uv venv --python 3.12
-uv pip install -r requirements.txt -e ".[dev]"
-source .venv/bin/activate
+uv sync --extra dev --locked --python 3.12
 ```
 
-To run the app in dev mode with sample data:
+`uv sync` reads `uv.lock` and builds a `.venv` with the exact resolved dependency graph — no separate `uv venv`/`pip install` step needed, and no manual `requirements.txt` to keep in sync. `--locked` asserts `uv.lock` is already up to date with `pyproject.toml` and fails instead of silently re-resolving it — if you've added or changed a dependency, run `uv lock` yourself and commit the updated `uv.lock`.
+
+To run the app in dev mode with sample data — `uv run` runs a command inside that `.venv` without activating it:
 
 ```bash
 # Generate synthetic sample data into sample_data/ (no real bank data needed)
-python -c "from sample_data.generators import write_demo_files; write_demo_files('./sample_data/expense')"
+uv run python -c "from sample_data.generators import write_demo_files; write_demo_files('./sample_data/expense')"
 
 # Start the app pointing at that folder
-EXPENSE_TRACKER_DATA=./sample_data finn-tracker
+EXPENSE_TRACKER_DATA=./sample_data uv run finn-tracker
 ```
+
+(Prefer an activated shell instead? `source .venv/bin/activate`, then drop the `uv run` prefix from the commands above.)
 
 This keeps real bank files out of the repo entirely. Generated CSV files in `sample_data/` are gitignored.
 
@@ -86,6 +88,7 @@ Every contribution must follow these rules:
 ## PR checklist
 
 - [ ] Tests pass: `<python> -m pytest tests/ -v`
+- [ ] If you added/changed a dependency in `pyproject.toml`, ran `uv lock` and committed the updated `uv.lock` (`uv sync --extra dev --locked` fails if you forget)
 - [ ] No outbound network calls introduced
 - [ ] New merchant/account data goes through `mask_sensitive()` before any API response
 - [ ] CHANGELOG.md updated under `## [Unreleased]`

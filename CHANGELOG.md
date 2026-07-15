@@ -17,6 +17,7 @@ All notable changes to finn-tracker are documented here.
 ### Changed
 
 - Tooling migrated from conda to uv: install/dev docs, CI workflows, and packaging (`environment.yml` removed; `mcp` added to dev extras on Python ≥3.10)
+- Dependency management now uses a committed `uv.lock` instead of `requirements.txt` — CI and dev setup run `uv sync --extra dev` for fully reproducible installs across the supported Python range; `requirements.txt` removed
 
 ### Categorization
 
