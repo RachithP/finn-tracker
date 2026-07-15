@@ -107,6 +107,18 @@ def get_categories(db_path: Path = None) -> List[str]:
     return all_cats
 
 
+def _remask_persisted_fields(t: dict) -> dict:
+    """Re-mask account/source_file on every DB load.
+
+    mask_sensitive() is idempotent (already-masked text has no matching digit
+    runs), so this is a no-op for rows written after masking coverage was
+    added, and closes the gap for rows persisted before it existed.
+    """
+    t["account"] = mask_sensitive(t.get("account") or "")
+    t["source_file"] = mask_sensitive(t.get("source_file") or "")
+    return t
+
+
 def _load_user_transactions(db_path: Path, overrides: Dict[str, str]) -> List[dict]:
     """Load manually imported transactions from the DB and apply category overrides."""
     try:
@@ -123,6 +135,7 @@ def _load_user_transactions(db_path: Path, overrides: Dict[str, str]) -> List[di
         t["txn_id"] = tid
         if tid in overrides:
             t["category"] = overrides[tid]
+        _remask_persisted_fields(t)
     return txns
 
 

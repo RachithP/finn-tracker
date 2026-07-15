@@ -26,18 +26,9 @@ A fully local expense tracking and visualization tool. Import bank CSVs and PDF 
 
 ## Quick Start
 
-### Step 1 — Install Python (if you haven't already)
+### Step 1 — Install uv (if you haven't already)
 
-`finn-tracker` requires Python 3.9 or later. Check if you have it:
-
-```bash
-python3 --version
-```
-
-If you see `Python 3.9` or higher, skip to Step 2. Otherwise, install it:
-
-- **macOS**: [Download from python.org](https://python.org/downloads) or run `brew install python`
-- **Ubuntu/Debian**: `sudo apt install python3`
+`finn-tracker` is installed with [uv](https://docs.astral.sh/uv/), a fast Python package manager that fetches Python for you if needed — see the [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) for the one-line install.
 
 > **Note:** finn-tracker is developed and tested on macOS and Ubuntu. It may work on other platforms but is not officially supported on Windows.
 
@@ -46,18 +37,12 @@ If you see `Python 3.9` or higher, skip to Step 2. Otherwise, install it:
 Open a terminal and run:
 
 ```bash
-pip install finn-tracker
+uv tool install finn-tracker
 ```
 
-> **Tip:** If `pip` isn't found, try `pip3 install finn-tracker` or `python3 -m pip install finn-tracker`.
+Like `pipx`, `uv tool install` creates a dedicated environment for `finn-tracker` in uv's own directory (not in your project or shell) and puts the `finn-tracker` command on your PATH — nothing to create or activate yourself. (Contributors hacking on the source use a repo-local `.venv` instead — see [CONTRIBUTING.md](CONTRIBUTING.md).)
 
-> **Optional — use a virtual environment:** If you want to keep `finn-tracker` isolated from other Python packages, create a virtual environment first:
-> ```bash
-> python3 -m venv ~/.venvs/finn-tracker
-> source ~/.venvs/finn-tracker/bin/activate
-> pip install finn-tracker
-> ```
-> You'll need to activate the environment (`source ~/.venvs/finn-tracker/bin/activate`) each time before running `finn-tracker`.
+> **Prefer plain pip?** `pip install finn-tracker` (Python 3.9+) works too.
 
 ### Step 3 — Launch
 

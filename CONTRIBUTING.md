@@ -7,10 +7,14 @@ All contributions must preserve the core privacy guarantee: **no data ever leave
 
 ## Getting started
 
+Dev setup uses [uv](https://docs.astral.sh/uv/) (see the [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/)):
+
 ```bash
 git clone https://github.com/RachithP/finn-tracker.git
 cd finn-tracker
-pip install -e ".[dev]"
+uv venv --python 3.12
+uv pip install -r requirements.txt -e ".[dev]"
+source .venv/bin/activate
 ```
 
 To run the app in dev mode with sample data:
@@ -29,14 +33,14 @@ This keeps real bank files out of the repo entirely. Generated CSV files in `sam
 
 ## Running tests
 
-> Before running tests, ask the user which Python environment to use. Do not probe the filesystem to discover it. Example: "Which Python environment should I use? (e.g. conda env name, venv path)"
+> Before running tests, ask the user which Python environment to use. Do not probe the filesystem to discover it. Example: "Which Python environment should I use? (e.g. the repo's uv-managed `.venv`, or another interpreter path)"
 
 ```bash
-# Replace <python> with the binary the user specifies
+# Replace <python> with the binary the user specifies (typically .venv/bin/python)
 <python> -m pytest tests/ -v
 ```
 
-All 472 tests live in `tests/`:
+All 495 tests live in `tests/`:
 - `test_app.py` and `test_cli.py` — parsers, Flask routes, persistence, privacy masking, CLI
 - `test_db.py` — shared data access layer, analytics, period filtering
 - `test_ingest.py` — file routing, multi-file ingestion

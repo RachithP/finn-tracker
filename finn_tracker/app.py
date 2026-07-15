@@ -20,7 +20,10 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 from finn_tracker.ingest import ingest_file
 from finn_tracker.models import mask_sensitive, DEFAULT_CATEGORIES, autocat
-from finn_tracker.utils.db import _get_default_folders, _extract_pattern, make_txn_id, dedup, scan_folders
+from finn_tracker.utils.db import (
+    _get_default_folders, _extract_pattern, make_txn_id, dedup, scan_folders,
+    _remask_persisted_fields,
+)
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
@@ -99,7 +102,7 @@ def _load_session_from_db() -> None:
             for row in conn.execute("SELECT name FROM custom_categories ORDER BY id")
         ]
         _session["user_transactions"] = [
-            json.loads(row["txn_json"])
+            _remask_persisted_fields(json.loads(row["txn_json"]))
             for row in conn.execute("SELECT txn_json FROM user_transactions ORDER BY id")
         ]
         _session["learned_rules"] = _db_load_learned_rules(conn)
@@ -288,6 +291,8 @@ def import_files():
         folder_txns = []
 
     full = dedup(folder_txns + _session["user_transactions"])
+    # Error strings can echo filenames or raw row content — mask before responding.
+    errors = [mask_sensitive(e) for e in errors]
     return jsonify({"transactions": full, "count": len(full), "errors": errors})
 
 
@@ -331,11 +336,12 @@ def import_folder():
 
     folder_txns = _scan_default_folders()
     full = dedup(folder_txns + _session["user_transactions"])
+    # Filenames and error strings can embed account numbers — mask before responding.
     return jsonify({
         "transactions": full,
         "count": len(full),
-        "files_scanned": [f.name for f in files],
-        "errors": errors,
+        "files_scanned": [mask_sensitive(f.name) for f in files],
+        "errors": [mask_sensitive(e) for e in errors],
     })
 
 
@@ -380,10 +386,18 @@ def export_csv():
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     fields = ["date", "merchant", "amount", "category", "account", "source_file"]
+    # Re-mask text fields on the way out (same defense-in-depth as the PDF builder).
+    masked_rows = [
+        {**t,
+         "merchant":    mask_sensitive(str(t.get("merchant") or "")),
+         "account":     mask_sensitive(str(t.get("account") or "")),
+         "source_file": mask_sensitive(str(t.get("source_file") or ""))}
+        for t in transactions
+    ]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(transactions)
+        writer.writerows(masked_rows)
 
     return jsonify({"saved_path": str(out_path), "rows": len(transactions)})
 
@@ -644,7 +658,7 @@ def _build_pdf(transactions: List[dict], out_path: str) -> None:
         amt = float(t.get("amount", 0))
         merchant = mask_sensitive(t.get("merchant", ""))
         merchant = (merchant[:32] + "…") if len(merchant) > 33 else merchant
-        source = t.get("source_file", "")
+        source = mask_sensitive(t.get("source_file", ""))
         source = (source[:18] + "…") if len(source) > 19 else source
         txn_rows.append([
             t.get("date", ""),

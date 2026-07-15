@@ -90,6 +90,23 @@ class TestTransaction(unittest.TestCase):
         self.assertIn("Store", r)
         self.assertNotIn("raw", r.lower())
 
+    def test_to_dict_masks_account_and_source_file(self):
+        # Fallback paths use the raw filename stem as account/source_file — a full
+        # account or card number embedded there must never reach any output channel.
+        t = Transaction(date=date(2024, 1, 1), merchant="Store", amount=10.0,
+                        account="statement_123456789012",
+                        source_file="stmt_4111111111111111.csv")
+        d = t.to_dict()
+        self.assertNotIn("123456789012", d["account"])
+        self.assertNotIn("4111111111111111", d["source_file"])
+
+    def test_to_dict_keeps_last4_account_label(self):
+        t = Transaction(date=date(2024, 1, 1), merchant="Store", amount=10.0,
+                        account="Chase ••4231", source_file="chase_4231_jan.csv")
+        d = t.to_dict()
+        self.assertEqual(d["account"], "Chase ••4231")
+        self.assertEqual(d["source_file"], "chase_4231_jan.csv")
+
 
 class TestMaskSensitive(unittest.TestCase):
 
@@ -108,6 +125,52 @@ class TestMaskSensitive(unittest.TestCase):
     def test_masks_long_account_number(self):
         masked = mask_sensitive("Account: 123456789012")
         self.assertNotIn("123456789012", masked)
+
+    def test_masks_amex_15_digit_contiguous(self):
+        masked = mask_sensitive("Amex 371449635398431 charge")
+        self.assertNotIn("371449635398431", masked)
+
+    def test_masks_amex_15_digit_grouped(self):
+        masked = mask_sensitive("Card: 3714 496353 98431")
+        self.assertNotIn("3714 496353 98431", masked)
+
+    def test_masks_13_digit_card(self):
+        masked = mask_sensitive("Visa 4222222222222 purchase")
+        self.assertNotIn("4222222222222", masked)
+
+    def test_masks_14_digit_card(self):
+        masked = mask_sensitive("Diners 36227206271667 dinner")
+        self.assertNotIn("36227206271667", masked)
+
+    def test_masks_17_digit_card(self):
+        masked = mask_sensitive("Card 62123456789012345 charge")
+        self.assertNotIn("62123456789012345", masked)
+
+    def test_masks_18_digit_maestro(self):
+        masked = mask_sensitive("Card 501234567890123456 charge")
+        self.assertNotIn("501234567890123456", masked)
+
+    def test_masks_19_digit_unionpay(self):
+        masked = mask_sensitive("Card 6212345678901234567 charge")
+        self.assertNotIn("6212345678901234567", masked)
+
+    def test_masks_grouped_account_number_12digit(self):
+        masked = mask_sensitive("Account: 1234-5678-9012")
+        self.assertNotIn("1234-5678-9012", masked)
+
+    def test_masks_grouped_account_number_8digit(self):
+        masked = mask_sensitive("Account 1234-5678 opened")
+        self.assertNotIn("1234-5678", masked)
+
+    def test_grouped_account_regex_does_not_mask_dates(self):
+        # Regression guard: the grouped-account pattern only matches exact
+        # 4-digit groups, so a 2-2-4 grouped date must pass through untouched.
+        self.assertEqual(mask_sensitive("Posted 01-15-2024"), "Posted 01-15-2024")
+        self.assertEqual(mask_sensitive("Trans date 2024-01-15 ref"), "Trans date 2024-01-15 ref")
+
+    def test_last4_account_label_not_masked(self):
+        # Policy: bank-style last-4 labels stay readable so accounts are distinguishable.
+        self.assertEqual(mask_sensitive("Chase ••1234"), "Chase ••1234")
 
     def test_normal_text_unchanged(self):
         text = "WHOLE FOODS MARKET #123"
@@ -743,6 +806,22 @@ class TestCSVExport(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTrue(os.path.exists(nested))
 
+    def test_csv_export_masks_sensitive_fields(self):
+        # Defense-in-depth: even if the client sends unmasked data, the
+        # written CSV must not contain card/account numbers in any text field.
+        out = os.path.join(self.tmpdir, "masked.csv")
+        txns = [{"date": "2024-01-01", "merchant": "PURCHASE 4111111111111111",
+                 "amount": -50.0, "category": "Shopping",
+                 "account": "statement_123456789012",
+                 "source_file": "stmt_371449635398431.csv"}]
+        self.client.post("/export/csv",
+                         data=json.dumps({"transactions": txns, "save_path": out}),
+                         content_type="application/json")
+        content = Path(out).read_text()
+        self.assertNotIn("4111111111111111", content)
+        self.assertNotIn("123456789012", content)
+        self.assertNotIn("371449635398431", content)
+
 
 class TestPDFExport(unittest.TestCase):
 
@@ -786,6 +865,23 @@ class TestPDFExport(unittest.TestCase):
                              content_type="application/json")
         data = json.loads(r.data)
         self.assertEqual(data["saved_path"], out)
+
+    def test_pdf_export_masks_source_filename(self):
+        # The Source column must not leak a card number embedded in source_file.
+        # Fixture is 19 chars — short enough to escape the column's 18-char
+        # truncation, so this test fails if masking (not truncation) regresses.
+        import pdfplumber
+        out = os.path.join(self.tmpdir, "masked.pdf")
+        txns = [{"date": "2024-01-01", "merchant": "STORE", "amount": -10.0,
+                 "category": "Shopping",
+                 "source_file": "371449635398431.csv"}]
+        self.client.post("/export/pdf",
+                         data=json.dumps({"transactions": txns, "save_path": out}),
+                         content_type="application/json")
+        with pdfplumber.open(out) as pdf:
+            text = "".join(page.extract_text() or "" for page in pdf.pages)
+        self.assertNotIn("371449635398431", text)
+        self.assertIn("****", text)  # prove masking, not truncation, redacted it
 
 
 class TestFolderScanner(unittest.TestCase):
@@ -907,6 +1003,100 @@ class TestPrivacyMasking(unittest.TestCase):
     def test_mask_sensitive_ssn(self):
         result = mask_sensitive("SSN 123-45-6789")
         self.assertNotIn("123-45-6789", result)
+
+    def test_filename_with_account_number_masked_in_errors(self):
+        # Unsupported-type errors echo the uploaded filename — a full account
+        # number embedded in it must be masked in the JSON response.
+        path = os.path.join(self.tmpdir, "stmt_123456789012.xlsx")
+        Path(path).write_text("fake content")
+        with open(path, "rb") as f:
+            r = self.client.post("/import/files",
+                                 data={"files": (f, "stmt_123456789012.xlsx")},
+                                 content_type="multipart/form-data")
+        data = json.loads(r.data)
+        self.assertTrue(data.get("errors"), "expected unsupported-type error to be reported")
+        for err in data.get("errors", []):
+            self.assertNotIn("123456789012", err, f"Account number exposed in: {err}")
+
+    def test_import_folder_response_masks_filenames(self):
+        # files_scanned echoes filenames — a full account number in one must be masked.
+        # Cleanup runs even on assertion failure, and purges the shared test DB
+        # (POST /reset clears only the in-memory session, not user_transactions).
+        def _purge():
+            self.client.post("/reset")
+            with flask_app._db_conn() as conn:
+                conn.execute("DELETE FROM user_transactions")
+        self.addCleanup(_purge)
+        folder = os.path.join(self.tmpdir, "statements")
+        os.makedirs(folder)
+        Path(os.path.join(folder, "stmt_123456789012.csv")).write_text(
+            "date,merchant,amount\n2024-01-01,TEST STORE,-10.00\n"
+        )
+        r = self.client.post("/import/folder",
+                             data=json.dumps({"folder": folder}),
+                             content_type="application/json")
+        data = json.loads(r.data)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(data.get("files_scanned"), "expected the CSV to be scanned")
+        for name in data.get("files_scanned", []):
+            self.assertNotIn("123456789012", name, f"Account number exposed in: {name}")
+
+
+class TestMCPFieldProjection(unittest.TestCase):
+    """MCP responses are the one channel where data can leave the machine —
+    they must expose only the whitelisted fields (no source_file)."""
+
+    def _get_mcp_server(self):
+        try:
+            from finn_tracker import mcp_server
+        except ImportError:
+            self.skipTest("mcp package not installed")
+        return mcp_server
+
+    def test_project_excludes_source_file(self):
+        mcp_server = self._get_mcp_server()
+        txn = {
+            "date": "2024-01-01", "merchant": "STORE", "amount": -10.0,
+            "category": "Shopping", "account": "Chase ••1234",
+            "source_folder": "expense", "txn_id": "abc123def456",
+            "source_file": "Chase_1234_statement.csv",
+        }
+        out = mcp_server._project(txn)
+        self.assertNotIn("source_file", out)
+        self.assertEqual(out["account"], "Chase ••1234")
+        self.assertEqual(set(out), set(mcp_server.MCP_TXN_FIELDS))
+
+    def test_whitelist_matches_docstring_contract(self):
+        mcp_server = self._get_mcp_server()
+        self.assertEqual(
+            set(mcp_server.MCP_TXN_FIELDS),
+            {"date", "merchant", "amount", "category", "account", "source_folder", "txn_id"},
+        )
+        # The docstring is the contract MCP clients see — keep it in sync.
+        doc = mcp_server.get_transactions.__doc__
+        for field in mcp_server.MCP_TXN_FIELDS:
+            self.assertIn(field, doc)
+        self.assertNotIn("source_file", doc)
+
+    def test_project_tolerates_missing_fields(self):
+        mcp_server = self._get_mcp_server()
+        out = mcp_server._project({"date": "2024-01-01", "merchant": "X"})
+        self.assertEqual(out, {"date": "2024-01-01", "merchant": "X"})
+
+    def test_get_transactions_tool_output_excludes_source_file(self):
+        # Integration-level: the exposed tool itself must apply the whitelist,
+        # not just the _project helper.
+        mcp_server = self._get_mcp_server()
+        from unittest.mock import patch
+        fake = [{"date": "2024-01-01", "merchant": "STORE", "amount": -10.0,
+                 "category": "Shopping", "account": "Chase ••1234",
+                 "source_folder": "expense", "txn_id": "abc123def456",
+                 "source_file": "Chase_1234_statement.csv"}]
+        with patch.object(mcp_server, "get_all_transactions", return_value=fake):
+            rows = json.loads(mcp_server.get_transactions(period="all"))
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertNotIn("source_file", row)
 
 
 class TestDeduplication(unittest.TestCase):
@@ -1124,6 +1314,23 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(len(flask_app._session["user_transactions"]), 1)
         self.assertEqual(flask_app._session["user_transactions"][0]["txn_id"], "tx001")
         self.assertAlmostEqual(flask_app._session["user_transactions"][0]["amount"], -89.47)
+
+    def test_legacy_unmasked_user_transaction_remasked_on_load(self):
+        # Simulates a row persisted before masking coverage existed (or by
+        # any future write path that forgets to mask): _db_save_user_transactions
+        # writes the dict verbatim, with no masking at that layer. Loading it
+        # back (server restart / _load_session_from_db) must re-mask account
+        # and source_file rather than serving the raw values forever.
+        txn = {"txn_id": "legacy001", "date": "2024-01-01", "merchant": "STORE",
+               "amount": -10.0, "category": "Shopping",
+               "account": "statement_123456789012",
+               "source_file": "stmt_4111111111111111.csv",
+               "source_folder": "expense"}
+        flask_app._db_save_user_transactions([txn])
+        self._reload_session()
+        loaded = flask_app._session["user_transactions"][0]
+        self.assertNotIn("123456789012", loaded["account"])
+        self.assertNotIn("4111111111111111", loaded["source_file"])
 
     def test_user_transactions_no_duplicate_insert(self):
         txn = {"txn_id": "tx_dup", "date": "2024-02-01", "merchant": "NETFLIX",

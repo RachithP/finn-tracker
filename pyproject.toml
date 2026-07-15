@@ -30,7 +30,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    # Needed so the MCP privacy-whitelist tests run (they skip without it).
+    # mcp requires Python >=3.10; the 3.9 CI job skips those tests by design.
+    "mcp[cli]; python_version >= '3.10'",
+]
 
 [project.scripts]
 finn-tracker = "finn_tracker.__main__:main"

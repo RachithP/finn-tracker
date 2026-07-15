@@ -12,7 +12,9 @@ finn-tracker
 
 **Run tests**:
 
-> Before running any tests or Python commands, ask the user for the conda/venv environment name. Do not probe the filesystem to discover it. Example: "Which Python environment should I use to run tests? (e.g. `finn-tracker` conda env, a venv path, etc.)"
+> Before running any tests or Python commands, ask the user which Python environment to use. Do not probe the filesystem to discover it. Example: "Which Python environment should I use to run tests? (e.g. the repo's uv-managed `.venv`, or another interpreter path)"
+>
+> This repo uses [uv](https://docs.astral.sh/uv/) for environments. If none exists yet: `uv venv --python 3.12 && uv pip install -r requirements.txt -e ".[dev]"` — the test binary is then `.venv/bin/python`.
 
 ```bash
 # Use the Python binary from the environment the user specifies, e.g.:
@@ -28,7 +30,7 @@ finn-tracker
 <python> -m pytest tests/test_app.py::TestPersistence::test_db_init_creates_tables -v
 ```
 
-All 472 tests live in `tests/`:
+All 495 tests live in `tests/`:
 - `test_app.py` — parsers, Flask routes, persistence, AI chat
 - `test_cli.py` — CLI, packaging
 - `test_db.py` — shared data access layer, analytics, period filtering
