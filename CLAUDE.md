@@ -14,7 +14,7 @@ finn-tracker
 
 > Before running any tests or Python commands, ask the user which Python environment to use. Do not probe the filesystem to discover it. Example: "Which Python environment should I use to run tests? (e.g. the repo's uv-managed `.venv`, or another interpreter path)"
 >
-> This repo uses [uv](https://docs.astral.sh/uv/) for environments. If none exists yet: `uv sync --extra dev --python 3.12` — the test binary is then `.venv/bin/python`.
+> This repo uses [uv](https://docs.astral.sh/uv/) for environments. If none exists yet: `uv sync --extra dev --locked --python 3.12` — the test binary is then `.venv/bin/python`. `--locked` fails instead of silently rewriting `uv.lock` if it's out of sync with `pyproject.toml`. If you added or changed a dependency, run `uv lock` yourself and commit the updated `uv.lock`.
 
 ```bash
 # Use the Python binary from the environment the user specifies, e.g.:
