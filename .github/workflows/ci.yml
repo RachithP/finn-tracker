@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.9", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
       - name: Create venv (uv downloads the Python version if needed)
         run: |
@@ -42,7 +42,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
       - name: Create venv
         run: |
@@ -69,12 +69,11 @@ jobs:
           else COLOR="red"; fi
           echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${TOTAL}%\",\"color\":\"${COLOR}\"}" > badge.json
       - name: Upload badge to gist
-        uses: exuanbo/actions-deploy-gist@v1
-        with:
-          token: ${{ secrets.GIST_TOKEN }}
-          gist_id: 9088e1501976e0528e0da2fa5d38a465
-          file_path: badge.json
-          file_type: text
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          jq -n --arg content "$(cat badge.json)" '{files: {"badge.json": {content: $content}}}' \
+            | gh api gists/9088e1501976e0528e0da2fa5d38a465 -X PATCH --input -
 
   publish:
     needs: test
@@ -83,7 +82,7 @@ jobs:
     permissions:
       id-token: write  # for trusted publishing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
       - name: Build
         run: uv build
