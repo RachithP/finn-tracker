@@ -2,6 +2,20 @@
 
 All notable changes to finn-tracker are documented here.
 
+## [Unreleased]
+
+### Privacy
+
+- `mask_sensitive()` now catches Amex 15-digit and all 13-19 digit card numbers (previously only 16-digit cards and 8-12 digit accounts), and masks digit runs glued to letters/underscores (e.g. `stmt_123456789012.csv`) that word-boundary matching missed
+- `account` and `source_file` are masked in every API response (`Transaction.to_dict()`); bank-style last-4 labels like `Chase ••1234` stay readable
+- MCP server no longer returns `source_file` — statement filenames never leave the machine (`get_transactions` output is now a strict field whitelist)
+- Import endpoints mask error messages and `files_scanned` filenames before responding
+- CSV and PDF exports re-mask merchant, account, and source filename on write (defense in depth)
+
+### Changed
+
+- Tooling migrated from conda to uv: install/dev docs, CI workflows, and packaging (`environment.yml` removed; `mcp` added to dev extras on Python ≥3.10)
+
 ## [0.0.1] - 2026-05-13
 
 Initial release.
