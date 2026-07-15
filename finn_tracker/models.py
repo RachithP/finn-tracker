@@ -17,6 +17,8 @@ DEFAULT_CATEGORIES = [
     "Shopping",
     "Entertainment",
     "Health & Medical",
+    "Fitness",
+    "Education",
     "Utilities",
     "Housing & Rent",
     "Travel",
@@ -64,6 +66,13 @@ _AUTOCAT_RULES = [
         r'|GROCER(?:Y|IES)?|SUPERMARKET|SUPER\s*MARKET|FARMERS\s*MARKET',
         re.I), "Groceries"),
 
+    # Education — before Subscriptions so Coursera/Duolingo/LeetCode land here
+    (re.compile(
+        r'UDEMY|EDX\b|KHAN\s*ACADEMY|SKILLSHARE|COURSERA|DUOLINGO|LEETCODE'
+        r'|CHEGG|\bBURSAR\b|\bTUITION\b|STUDENT\s*LOAN'
+        r'|GRAMMARLY|GRADESCOPE|CAMPUSBOOKRENTALS',
+        re.I), "Education"),
+
     # Subscriptions — before Shopping so "AMAZON PRIME" lands here, not Shopping
     (re.compile(
         r'NETFLIX|SPOTIFY|APPLE\.COM|APPLE\s*ONE|APPLE\s*TV|APPLE\s*MUSIC'
@@ -72,8 +81,8 @@ _AUTOCAT_RULES = [
         r'|GOOGLE\s*(?:ONE|STORAGE|PLAY)|MICROSOFT\s*365|OFFICE\s*365'
         r'|DROPBOX|SOFTWARE\s*SUBSCR|GITHUB|NOTION|FIGMA|CANVA'
         r'|NEW\s*YORK\s*TIMES|WASHINGTON\s*POST|WALL\s*STREET\s*JOURNAL'
-        r'|AUDIBLE|DUOLINGO|HEADSPACE|CALM|ST\s*SUBSCRIPTIONS|COURSERA|NYTIMES'
-        r'|LINKEDIN|FREETAXUSA|LEETCODE|OPENSNOW|MEDIUM\s*(?:MONTHLY|\.COM)'
+        r'|AUDIBLE|HEADSPACE|CALM|ST\s*SUBSCRIPTIONS|NYTIMES'
+        r'|LINKEDIN|FREETAXUSA|OPENSNOW|MEDIUM\s*(?:MONTHLY|\.COM)'
         r'|GOOGLE\s*(?:ONE|STORAGE|PLAY|VOICE|VPN)|GOOGLE\s*\*YOUTUBE',
         re.I), "Subscriptions"),
 
@@ -151,11 +160,18 @@ _AUTOCAT_RULES = [
         r'|SMARTECARTE|RCI\s*BILLING|\bJETX\b',
         re.I), "Travel"),
 
+    # Fitness — gyms and fitness studios
+    (re.compile(
+        r'PLANET\s*FITNESS|LA\s*FITNESS|24\s*HOUR\s*FITNESS|ANYTIME\s*FITNESS'
+        r'|GOLD\'?S\s*GYM|EQUINOX|ORANGE\s*THEORY|CROSSFIT|\bYMCA\b'
+        r'|PELOTON|CYCL(?:EBAR|EHOUSE)|\bYOGA\b|\bPILATES\b|\bBARRE\b'
+        r'|ROCK\s*CLIMBING|CLIMBING\s*GYM|LIFETIME\s*FITNESS|F45\s*TRAINING'
+        r'|VOLO\s*\*|RUN365',
+        re.I), "Fitness"),
+
     # Health & Medical
     (re.compile(
         r'CVS|WALGREENS|RITE\s*AID|PHARMACY|DRUG\s*STORE'
-        r'|PLANET\s*FITNESS|LA\s*FITNESS|24\s*HOUR\s*FITNESS|ANYTIME\s*FITNESS'
-        r'|GOLD\'?S\s*GYM|EQUINOX|ORANGE\s*THEORY|CROSSFIT|\bYMCA\b'
         r'|ZOOMCARE|SUTTER\s*HEALTH|PROVIDENCE|KAISER\s*(?:PERM|FOUND)'
         r'|ONESTOP\s*MEDICAL|\bPAMF\b|THORNE\s*RESEARCH'
         r'|MEDICAL\s*(?:CENTER|GROUP)|URGENT\s*CARE|\bCLINIC\b|HOSPITAL'
@@ -177,8 +193,7 @@ _AUTOCAT_RULES = [
         r'|STUBHUB|EVENTBRITE|LIVE\s*NATION|BOWLING|ARCADE'
         r'|ESCAPE\s*ROOM|TRAMPOLINE|MUSEUM|ZOO\b|AQUARIUM'
         r'|ARENA\s*SPORTS|SIX\s*FLAGS|DISNEYLAND|UNIVERSAL\s*STUDIOS'
-        r'|STEAM\s*GAMES|PLAYSTATION|XBOX|NINTENDO|TWITCH'
-        r'|VOLO\s*\*|RUN365',
+        r'|STEAM\s*GAMES|PLAYSTATION|XBOX|NINTENDO|TWITCH',
         re.I), "Entertainment"),
 
     # Housing & Rent
