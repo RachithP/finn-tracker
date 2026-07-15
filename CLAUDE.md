@@ -116,10 +116,9 @@ Frontend `normalize(t)` computes:
 ### Transaction type system (frontend only)
 
 `normalize()` in `index.html` assigns `type` in this priority order:
-1. `"payment"` — credit (positive amount) + merchant matches one of `AUTOPAY_PATTERNS` (BofA ONLINE/MOBILE RECURRING, Chase AUTOMATIC PAYMENT - THANK, Capital One CAPITAL ONE AUTOPAY PYMT)
-2. `"transfer"` — keywords like "transfer", "zelle"
-3. `"income"` — `source_folder === "income"`
-4. `"expense"` — everything else
+1. `"payment"` — `isAutoPayment(t)` (credit + merchant matches one of `AUTOPAY_PATTERNS`: BofA ONLINE/MOBILE RECURRING, Chase AUTOMATIC PAYMENT - THANK, Chase PAYMENT THANK YOU-MOBILE, Capital One CAPITAL ONE AUTOPAY PYMT, Capital One CAPITAL ONE MOBILE PYMT) OR the transaction's category is `"Payments"`
+2. `"income"` — `source_folder === "income"`
+3. `"expense"` — everything else
 
 `type` is frontend-only; it is NOT stored in the DB or returned by the API. All expense calculations filter on `t.type === "expense"`, so payments are automatically excluded.
 
@@ -138,7 +137,7 @@ Folder-scanned transactions (`expense/`, `income/`) are **not** stored in the DB
 
 ### Category learning system
 
-When a user assigns a category to a transaction, `POST /categories/update` also extracts a merchant pattern via `_extract_pattern(merchant)` in `app.py` and saves it to `learned_rules`. Future transactions whose normalized merchant matches the pattern are auto-categorized without a user override.
+When a user assigns a category to a transaction, `POST /categories/update` also extracts a merchant pattern via `_extract_pattern(merchant)` in `utils/db.py` (imported into `app.py`) and saves it to `learned_rules`. Future transactions whose normalized merchant matches the pattern are auto-categorized without a user override.
 
 **`_extract_pattern()` normalization pipeline** (Python and JS `normalizeMerchant()` must stay in sync):
 1. Strip POS prefixes: `SQ *`, `TST*`, `PP*`, `SP `
