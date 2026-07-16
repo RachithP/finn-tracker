@@ -1,5 +1,8 @@
 """
-Expense Tracker - Core Data Models
+Core domain module: the transaction data models, plus the categorization,
+parsing, and privacy-masking logic that operates on them. Shared by both
+parsers, app.py, and mcp_server.py; no Flask import, no I/O.
+
 All data stays local. No network calls. No PII displayed.
 """
 from dataclasses import dataclass, field
