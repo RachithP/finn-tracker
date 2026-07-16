@@ -9,7 +9,7 @@ from typing import Optional, List, Tuple
 
 import pdfplumber
 
-from finn_tracker.models import Transaction, ParseResult, mask_sensitive
+from finn_tracker.models import Transaction, ParseResult, mask_sensitive, parse_amount
 
 
 DATE_PATTERNS = [
@@ -90,24 +90,6 @@ def _parse_date(raw: str) -> Optional[date]:
         except ValueError:
             continue
     return None
-
-
-def _parse_amount(raw: str) -> Optional[float]:
-    s = raw.strip()
-    # Normalize Unicode minus variants (em-dash U+2014, en-dash U+2013, minus sign U+2212)
-    # to ASCII hyphen-minus before parsing — BofA and some other banks use these in PDFs.
-    for ch in ('−', '–', '—'):
-        s = s.replace(ch, '-')
-    s = s.replace(",", "").replace("$", "").replace(" ", "")
-    negative = s.startswith("(") and s.endswith(")")
-    s = s.strip("()")
-    try:
-        val = float(s)
-        if val != val:  # NaN check
-            return None
-        return -val if negative else val
-    except ValueError:
-        return None
 
 
 def _parse_short_date(raw: str, year: int) -> Optional[date]:
@@ -244,7 +226,7 @@ def _parse_table_row(
     for cell in reversed(cells):
         m = AMOUNT_PATTERN.search(cell)
         if m:
-            amount = _parse_amount(m.group(0))
+            amount = parse_amount(m.group(0))
             break
 
     # Merchant: longest non-date, non-amount cell
@@ -321,7 +303,7 @@ def _parse_text_lines(
         if not amount_matches:
             continue
 
-        amount = _parse_amount(amount_matches[-1])
+        amount = parse_amount(amount_matches[-1])
         if amount is None:
             continue
 

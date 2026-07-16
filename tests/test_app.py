@@ -22,7 +22,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import finn_tracker.app as flask_app
-from finn_tracker.models import Transaction, ParseResult, DEFAULT_CATEGORIES, mask_sensitive
+from finn_tracker.models import Transaction, ParseResult, DEFAULT_CATEGORIES, mask_sensitive, parse_amount
 
 # ── Test DB isolation ─────────────────────────────────────────────────────────
 # Redirect the app's DB to a dedicated test file for the entire test run so
@@ -44,8 +44,8 @@ def tearDownModule():
         _TEST_DB_PATH.unlink(missing_ok=True)
     except OSError:
         pass
-from finn_tracker.parsers.csv_parser import parse_csv, _parse_amount, _parse_date, _detect_format, _find_header_skip
-from finn_tracker.parsers.pdf_parser import _extract_date_from_cell, _parse_amount as pdf_parse_amount, _parse_date as pdf_parse_date
+from finn_tracker.parsers.csv_parser import parse_csv, _parse_date, _detect_format, _find_header_skip
+from finn_tracker.parsers.pdf_parser import _extract_date_from_cell, _parse_date as pdf_parse_date
 from finn_tracker.ingest import ingest_file
 from sample_data.generators import (
     write_sample_files, make_bad_csv,
@@ -219,25 +219,25 @@ class TestParseResult(unittest.TestCase):
 class TestParseAmount(unittest.TestCase):
 
     def test_simple_negative(self):
-        self.assertAlmostEqual(_parse_amount("-89.47"), -89.47)
+        self.assertAlmostEqual(parse_amount("-89.47"), -89.47)
 
     def test_positive(self):
-        self.assertAlmostEqual(_parse_amount("3200.00"), 3200.0)
+        self.assertAlmostEqual(parse_amount("3200.00"), 3200.0)
 
     def test_with_dollar_sign(self):
-        self.assertAlmostEqual(_parse_amount("$52.10"), 52.10)
+        self.assertAlmostEqual(parse_amount("$52.10"), 52.10)
 
     def test_with_comma(self):
-        self.assertAlmostEqual(_parse_amount("1,234.56"), 1234.56)
+        self.assertAlmostEqual(parse_amount("1,234.56"), 1234.56)
 
     def test_parenthesis_negative(self):
-        self.assertAlmostEqual(_parse_amount("(100.00)"), -100.0)
+        self.assertAlmostEqual(parse_amount("(100.00)"), -100.0)
 
     def test_invalid_returns_none(self):
-        self.assertIsNone(_parse_amount("not_a_number"))
+        self.assertIsNone(parse_amount("not_a_number"))
 
     def test_empty_returns_none(self):
-        self.assertIsNone(_parse_amount(""))
+        self.assertIsNone(parse_amount(""))
 
 
 class TestParseDate(unittest.TestCase):
@@ -513,13 +513,13 @@ class TestPDFParserHelpers(unittest.TestCase):
         self.assertIsNone(pdf_parse_date("NOTADATE"))
 
     def test_parse_amount_dollar(self):
-        self.assertAlmostEqual(pdf_parse_amount("$45.67"), 45.67)
+        self.assertAlmostEqual(parse_amount("$45.67"), 45.67)
 
     def test_parse_amount_negative(self):
-        self.assertAlmostEqual(pdf_parse_amount("-$100.00"), -100.00)
+        self.assertAlmostEqual(parse_amount("-$100.00"), -100.00)
 
     def test_parse_amount_paren(self):
-        self.assertAlmostEqual(pdf_parse_amount("(50.00)"), -50.00)
+        self.assertAlmostEqual(parse_amount("(50.00)"), -50.00)
 
     def test_extract_date_from_cell(self):
         self.assertEqual(_extract_date_from_cell("01/15/2024"), date(2024, 1, 15))

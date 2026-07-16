@@ -221,6 +221,27 @@ def autocat(merchant: str) -> str:
     return "Uncategorized"
 
 
+def parse_amount(raw: str) -> Optional[float]:
+    """Parse amount strings like '$1,234.56', '-$50.00', '(100.00)'.
+    Also normalizes Unicode minus variants (em-dash, en-dash, minus sign) that
+    some banks (e.g. BofA) use for negative amounts in PDF statements."""
+    if not raw:
+        return None
+    s = str(raw).strip()
+    for ch in ('−', '–', '—'):
+        s = s.replace(ch, '-')
+    s = s.replace(",", "").replace("$", "").replace(" ", "")
+    negative = s.startswith("(") and s.endswith(")")
+    s = s.strip("()")
+    try:
+        val = float(s)
+        if val != val:  # NaN check
+            return None
+        return -val if negative else val
+    except ValueError:
+        return None
+
+
 def mask_sensitive(value: str) -> str:
     """Mask account numbers, card numbers, SSNs from any string."""
     if not value:

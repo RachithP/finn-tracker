@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from finn_tracker.parsers.pdf_parser import (
     _detect_account_from_text,
     _parse_date,
-    _parse_amount,
     _parse_short_date,
     _parse_numeric_short_date,
     _extract_date_from_cell,
@@ -31,7 +30,7 @@ from finn_tracker.parsers.pdf_parser import (
     NUMERIC_SHORT_DATE_PATTERN,
     _SUMMARY_LINE_RE,
 )
-from finn_tracker.models import Transaction
+from finn_tracker.models import Transaction, parse_amount
 from sample_data.generators import (
     write_sample_pdf_files,
     CAPITAL_ONE_PDF_TRANSACTION_COUNT,
@@ -130,44 +129,44 @@ class TestParseDatePDF(unittest.TestCase):
 class TestParseAmountPDF(unittest.TestCase):
 
     def test_simple_positive(self):
-        self.assertAlmostEqual(_parse_amount("45.67"), 45.67)
+        self.assertAlmostEqual(parse_amount("45.67"), 45.67)
 
     def test_dollar_sign(self):
-        self.assertAlmostEqual(_parse_amount("$100.00"), 100.00)
+        self.assertAlmostEqual(parse_amount("$100.00"), 100.00)
 
     def test_negative(self):
-        self.assertAlmostEqual(_parse_amount("-$50.00"), -50.00)
+        self.assertAlmostEqual(parse_amount("-$50.00"), -50.00)
 
     def test_parentheses_negative(self):
-        self.assertAlmostEqual(_parse_amount("(75.00)"), -75.00)
+        self.assertAlmostEqual(parse_amount("(75.00)"), -75.00)
 
     def test_comma_thousands(self):
-        self.assertAlmostEqual(_parse_amount("$1,234.56"), 1234.56)
+        self.assertAlmostEqual(parse_amount("$1,234.56"), 1234.56)
 
     def test_invalid_returns_none(self):
-        self.assertIsNone(_parse_amount("not a number"))
+        self.assertIsNone(parse_amount("not a number"))
 
     def test_whitespace_stripped(self):
-        self.assertAlmostEqual(_parse_amount("  $45.67  "), 45.67)
+        self.assertAlmostEqual(parse_amount("  $45.67  "), 45.67)
 
     def test_spaces_in_amount(self):
-        self.assertAlmostEqual(_parse_amount("$ 45.67"), 45.67)
+        self.assertAlmostEqual(parse_amount("$ 45.67"), 45.67)
 
     # Unicode minus variants — BofA and some other banks use these in PDFs
     def test_em_dash_negative(self):
-        self.assertAlmostEqual(_parse_amount("—100.00"), -100.00)
+        self.assertAlmostEqual(parse_amount("—100.00"), -100.00)
 
     def test_en_dash_negative(self):
-        self.assertAlmostEqual(_parse_amount("–287.20"), -287.20)
+        self.assertAlmostEqual(parse_amount("–287.20"), -287.20)
 
     def test_unicode_minus_sign(self):
-        self.assertAlmostEqual(_parse_amount("−50.00"), -50.00)
+        self.assertAlmostEqual(parse_amount("−50.00"), -50.00)
 
     def test_em_dash_with_comma(self):
-        self.assertAlmostEqual(_parse_amount("—3,987.42"), -3987.42)
+        self.assertAlmostEqual(parse_amount("—3,987.42"), -3987.42)
 
     def test_em_dash_with_dollar(self):
-        self.assertAlmostEqual(_parse_amount("—$115.75"), -115.75)
+        self.assertAlmostEqual(parse_amount("—$115.75"), -115.75)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

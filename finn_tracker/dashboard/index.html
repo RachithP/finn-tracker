@@ -340,7 +340,7 @@
 
   <!-- Category Trend panel (hidden until a category is selected) -->
   <div class="panel" id="cat-trend-panel" style="display:none;margin-bottom:20px">
-    <div class="panel-hd" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:600;color:var(--text)">Category Trend</span>
       <select id="trend-cat-sel" class="inp" style="width:auto"
               onchange="_trendCat=this.value;renderCategoryTrend()">
@@ -710,29 +710,6 @@ async function handleFileInput(input) {
   }
 }
 
-async function importFolder() {
-  const folder = document.getElementById("folder-path").value.trim();
-  if (!folder) { setImportStatus("Enter a folder path first", "err"); return; }
-  setImportStatus("Scanning…", "");
-  setBtnLoading("btn-scan", true);
-
-  try {
-    const res = await fetch("/import/folder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setImportStatus(data.error || "Scan failed", "err"); return; }
-    const fileCount = data.files_scanned?.length || 0;
-    await handleIncoming(data.transactions, `${data.count} transactions from ${fileCount} file(s) in ${folder}`);
-  } catch(e) {
-    setImportStatus("Network error: " + e.message, "err");
-  } finally {
-    setBtnLoading("btn-scan", false);
-  }
-}
-
 async function handleIncoming(incoming, statusMsg) {
   if (!incoming.length) {
     setImportStatus("No transactions found", "err"); return;
@@ -1051,7 +1028,7 @@ function renderBarChart() {
   document.getElementById("bar-chart").innerHTML = sorted.map(([cat, amt]) => {
     const pct = (amt/max*100).toFixed(1);
     const col = cc(cat);
-    const escCat = cat.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const escCat = _escHtml(cat);
     return `<div class="bar-row" data-cat="${escCat}" onclick="setTrendCat(this.dataset.cat)" title="Click to see ${escCat} trend over time">
       <div class="bar-label" title="${escCat}">${escCat}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
@@ -1388,8 +1365,6 @@ function renderTable() {
     return `<th class="${_sortCol===c.key?"active":""}" onclick="setSort('${c.key}')">${c.label} ${arrow}</th>`;
   }).join("");
 
-  const catOpts = ALL_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
-
   const tbody = rows.length ? rows.map(t => {
     const rawAmt  = parseFloat(t.amount) || 0;
     const amtCol  = t.type==="payment" ? "#94a3b8" : rawAmt >= 0 ? "#4ade80" : "#f87171";
@@ -1482,13 +1457,17 @@ function today() {
 //  CATEGORY MANAGEMENT
 // ═══════════════════════════════════════════════════════
 
+function sortCategories(cats) {
+  return cats.slice().sort((a, b) =>
+    a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+}
+
 async function fetchCategories() {
   try {
     const r = await fetch("/categories");
     if (!r.ok) return;
     const data = await r.json();
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _defaultCats = new Set(data.defaults);
     _customCats  = new Set(data.custom);
     repopulateFilters();
@@ -1509,8 +1488,7 @@ async function addCategory() {
     });
     const data = await r.json();
     if (!r.ok) { showToast("Error: " + data.error); return; }
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _customCats = new Set(data.custom);
     inp.value = "";
     renderCatList();
@@ -1529,8 +1507,7 @@ async function removeCategory(name) {
     });
     const data = await r.json();
     if (!r.ok) { showToast("Error: " + data.error); return; }
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _customCats = new Set(data.custom);
     // Reassign any transactions using the removed category
     TXN.forEach(t => { if (t.category === name) t.category = "Uncategorized"; });
@@ -1644,13 +1621,6 @@ async function initDashboard() {
 }
 initDashboard();
 
-// Export path: update extension when type changes
-function _syncExportExt() {
-  const ext = _exportType === "pdf" ? "pdf" : "csv";
-  const el  = document.getElementById("export-path");
-  el.value  = el.value.replace(/\.(csv|pdf)$/, `.${ext}`);
-}
-
 // ═══════════════════════════════════════════════════════
 //  CHAT PANEL
 // ═══════════════════════════════════════════════════════
@@ -1704,7 +1674,7 @@ function _chatTs() {
 function _escHtml(s) {
   return String(s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-    .replace(/\n/g,"<br>");
+    .replace(/"/g,"&quot;").replace(/\n/g,"<br>");
 }
 
 function _appendChatMsg(role, text) {
@@ -1755,49 +1725,6 @@ function _handleChatAction(jsonStr) {
 // ═══════════════════════════════════════════════════════
 //  CHAT CONTEXT BUILDERS
 // ═══════════════════════════════════════════════════════
-
-function getTopMerchants(txns, limit) {
-  const expenses = txns.filter(t => t.type === "expense");
-  const byMerchant = {};
-  const countByMerchant = {};
-  
-  expenses.forEach(t => {
-    const m = t.merchant || "Unknown";
-    byMerchant[m] = (byMerchant[m] || 0) + t.spending;
-    countByMerchant[m] = (countByMerchant[m] || 0) + 1;
-  });
-  
-  return Object.entries(byMerchant)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([merchant, total]) => ({
-      merchant,
-      total: Math.round(total * 100) / 100,
-      count: countByMerchant[merchant]
-    }));
-}
-
-function getCategoryTotals(txns) {
-  const expenses = txns.filter(t => t.type === "expense");
-  const total = expenses.reduce((s, t) => s + t.spending, 0);
-  const byCat = {};
-  const countByCat = {};
-  
-  expenses.forEach(t => {
-    const c = t.category || "Uncategorized";
-    byCat[c] = (byCat[c] || 0) + t.spending;
-    countByCat[c] = (countByCat[c] || 0) + 1;
-  });
-  
-  return Object.entries(byCat)
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, amt]) => ({
-      category,
-      total: Math.round(amt * 100) / 100,
-      count: countByCat[category],
-      pct: total > 0 ? Math.round((amt / total) * 10000) / 100 : 0
-    }));
-}
 
 function getMonthlyTrend(txns, months) {
   const today = new Date();
