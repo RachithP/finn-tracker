@@ -11,7 +11,7 @@ import sqlite3
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from flask import Flask, request, jsonify, Response, stream_with_context
 
@@ -223,6 +223,27 @@ def _merge_into_session(masked_txns: List[dict]) -> List[dict]:
     return new_txns
 
 
+def _ingest_and_enrich(
+    file_path: str, label: str, source_folder: str, display_name: str
+) -> Tuple[List[dict], List[str]]:
+    """Parse one file, tag and enrich its transactions, and collect any errors.
+    Shared per-file logic for /import/files and /import/folder."""
+    txns: List[dict] = []
+    errors: List[str] = []
+    try:
+        result = ingest_file(file_path, account_label=label)
+        for t in result.transactions:
+            d = t.to_dict()
+            if not d.get("account"):
+                d["account"] = label
+            d["source_folder"] = source_folder
+            txns.append(_enrich(d))
+        errors.extend(result.errors)
+    except Exception as e:
+        errors.append(f"{display_name}: parse error — {e}")
+    return txns, errors
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -264,17 +285,13 @@ def import_files():
             tmp_paths.append(tmp.name)
 
             label = Path(f.filename).stem
-            try:
-                result = ingest_file(tmp.name, account_label=label)
-                for t in result.transactions:
-                    d = t.to_dict()
-                    if not d.get("account"):
-                        d["account"] = label
-                    d["source_folder"] = "expense"  # manual file uploads default to expense
-                    all_txns.append(_enrich(d))
-                errors.extend(result.errors)
-            except Exception as e:
-                errors.append(f"{Path(f.filename).name}: parse error — {e}")
+            # manual file uploads default to "expense"; error messages show the
+            # original uploaded filename, not the temp path used for parsing.
+            new_txns, new_errors = _ingest_and_enrich(
+                tmp.name, label, "expense", Path(f.filename).name
+            )
+            all_txns.extend(new_txns)
+            errors.extend(new_errors)
 
     finally:
         for p in tmp_paths:
@@ -319,18 +336,9 @@ def import_folder():
     all_txns: List[dict] = []
     errors: List[str] = []
     for fp in files:
-        label = fp.stem
-        try:
-            result = ingest_file(str(fp), account_label=label)
-            for t in result.transactions:
-                d = t.to_dict()
-                if not d.get("account"):
-                    d["account"] = label
-                d["source_folder"] = source_folder
-                all_txns.append(_enrich(d))
-            errors.extend(result.errors)
-        except Exception as e:
-            errors.append(f"{fp.name}: parse error — {e}")
+        new_txns, new_errors = _ingest_and_enrich(str(fp), fp.stem, source_folder, fp.name)
+        all_txns.extend(new_txns)
+        errors.extend(new_errors)
 
     _merge_into_session(all_txns)
 

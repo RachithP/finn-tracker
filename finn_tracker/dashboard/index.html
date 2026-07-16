@@ -1084,6 +1084,29 @@ function renderDonut() {
     <div class="legend">${legend}</div>`;
 }
 
+// Shared SVG axis scaffold (grid lines, baseline, x-axis labels) for the two
+// column-chart renderers below: renderTimeline() and renderCategoryTrend().
+function _renderChartAxes({ allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY }) {
+  const muted   = _cssVar("--muted");
+  const svgGrid = _cssVar("--svg-grid");
+  const svgBase = _cssVar("--svg-base");
+
+  const grids = [0.25,0.5,0.75,1].map(f => {
+    const y = (baseline - f*chartH).toFixed(1);
+    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${svgGrid}" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${muted}">${fmtNoSign(maxV*f)}</text>`;
+  }).join("");
+
+  const baselineLine = `<line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${svgBase}" stroke-width="1"/>`;
+
+  const xLabels = allKeys.map((k, i) => {
+    const x = PL + i*colW + colW/2;
+    return `<text x="${x.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="9" fill="${muted}">${bucketLabel(k, bucket)}</text>`;
+  }).join("");
+
+  return { grids, baselineLine, xLabels };
+}
+
 function renderTimeline() {
   const bucket  = bucketGranularity(_period);
   const scoped  = filterByPeriod(TXN, _period);
@@ -1157,34 +1180,23 @@ function renderTimeline() {
     return expBar + netCreditBar + incBar;
   }).join("");
 
-  const _muted   = _cssVar("--muted");
-  const _svgGrid = _cssVar("--svg-grid");
-  const _svgBase = _cssVar("--svg-base");
+  const { grids, baselineLine, xLabels } = _renderChartAxes({
+    allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY: totalH - 8,
+  });
 
-  const xLabels = allKeys.map((k, i) => {
-    const x = PL + i*colW + colW/2;
-    const lbl = bucketLabel(k, bucket);
-    return `<text x="${x.toFixed(1)}" y="${totalH-8}" text-anchor="middle" font-size="9" fill="${_muted}">${lbl}</text>`;
-  }).join("");
-
-  const grids = [0.25,0.5,0.75,1].map(f => {
-    const y = (baseline - f*chartH).toFixed(1);
-    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${_svgGrid}" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${_muted}">${fmtNoSign(maxV*f)}</text>`;
-  }).join("");
-
+  const muted = _cssVar("--muted");
   const legend = `
     <rect x="${W-PR+14}" y="${PT+2}"  width="11" height="11" fill="#f43f5e" rx="2"/>
-    <text x="${W-PR+30}" y="${PT+11}" font-size="10" fill="${_muted}">Expenses</text>
+    <text x="${W-PR+30}" y="${PT+11}" font-size="10" fill="${muted}">Expenses</text>
     <rect x="${W-PR+14}" y="${PT+20}" width="11" height="11" fill="#0d9488" rx="2" opacity=".75"/>
-    <text x="${W-PR+30}" y="${PT+29}" font-size="10" fill="${_muted}">Net Credit</text>
+    <text x="${W-PR+30}" y="${PT+29}" font-size="10" fill="${muted}">Net Credit</text>
     <rect x="${W-PR+14}" y="${PT+38}" width="11" height="11" fill="#4ade80" rx="2" opacity=".78"/>
-    <text x="${W-PR+30}" y="${PT+47}" font-size="10" fill="${_muted}">Income</text>`;
+    <text x="${W-PR+30}" y="${PT+47}" font-size="10" fill="${muted}">Income</text>`;
 
   document.getElementById("timeline").innerHTML = `
     <svg width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}" style="display:block;min-width:100%">
       ${grids}
-      <line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${_svgBase}" stroke-width="1"/>
+      ${baselineLine}
       ${bars}${xLabels}${legend}
     </svg>`;
 }
@@ -1241,25 +1253,14 @@ function renderCategoryTrend() {
               font-size="8" font-weight="600" fill="${col}">${fmtNoSign(v)}</text>` : ""}`;
   }).join("");
 
-  const _muted2   = _cssVar("--muted");
-  const _svgGrid2 = _cssVar("--svg-grid");
-  const _svgBase2 = _cssVar("--svg-base");
-
-  const xLabels = allKeys.map((k, i) => {
-    const x = PL + i*colW + colW/2;
-    return `<text x="${x.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="${_muted2}">${bucketLabel(k, bucket)}</text>`;
-  }).join("");
-
-  const grids = [0.25,0.5,0.75,1].map(f => {
-    const y = (baseline - f*chartH).toFixed(1);
-    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${_svgGrid2}" stroke-width="1" stroke-dasharray="3,3"/>
-      <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${_muted2}">${fmtNoSign(maxV*f)}</text>`;
-  }).join("");
+  const { grids, baselineLine, xLabels } = _renderChartAxes({
+    allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY: H - 8,
+  });
 
   el.innerHTML = `
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:100%">
       ${grids}
-      <line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${_svgBase2}" stroke-width="1"/>
+      ${baselineLine}
       ${bars}${xLabels}
     </svg>`;
 }
