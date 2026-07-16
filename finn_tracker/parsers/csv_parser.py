@@ -11,7 +11,7 @@ from typing import Optional, List
 
 import pandas as pd
 
-from finn_tracker.models import Transaction, ParseResult, mask_sensitive
+from finn_tracker.models import Transaction, ParseResult, mask_sensitive, parse_amount
 
 # Maximum number of non-empty rows to scan when searching for the header row.
 _MAX_HEADER_SCAN = 5
@@ -103,22 +103,6 @@ def _format_account_label(bank: str, last4: str, fallback: str = "") -> str:
     if bank:
         return bank
     return fallback
-
-
-def _parse_amount(raw: str) -> Optional[float]:
-    """Parse amount strings like '$1,234.56', '-$50.00', '(100.00)'."""
-    if not raw:
-        return None
-    s = str(raw).strip().replace(",", "").replace("$", "").replace(" ", "")
-    negative = s.startswith("(") and s.endswith(")")
-    s = s.strip("()")
-    try:
-        val = float(s)
-        if val != val:  # NaN check
-            return None
-        return -val if negative else val
-    except ValueError:
-        return None
 
 
 def _parse_date(raw: str, fmt: Optional[str] = None) -> Optional[date]:
@@ -269,8 +253,8 @@ def parse_csv(file_path: str, account_label: str = "") -> ParseResult:
                     continue
 
                 if split_columns:
-                    debit = _parse_amount(str(row.get(debit_col, "")).strip())
-                    credit = _parse_amount(str(row.get(credit_col, "")).strip())
+                    debit = parse_amount(str(row.get(debit_col, "")).strip())
+                    credit = parse_amount(str(row.get(credit_col, "")).strip())
                     if debit is not None:
                         amount = -debit      # charge: stored as negative
                     elif credit is not None:
@@ -282,7 +266,7 @@ def parse_csv(file_path: str, account_label: str = "") -> ParseResult:
                     raw_amount = str(row.get(amount_col, "")).strip()
                     if not raw_amount or raw_amount.lower() == "nan":
                         continue
-                    amount = _parse_amount(raw_amount)
+                    amount = parse_amount(raw_amount)
                     if amount is None:
                         errors.append(f"Row {idx}: unparseable amount '{raw_amount}'")
                         continue

@@ -340,7 +340,7 @@
 
   <!-- Category Trend panel (hidden until a category is selected) -->
   <div class="panel" id="cat-trend-panel" style="display:none;margin-bottom:20px">
-    <div class="panel-hd" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:600;color:var(--text)">Category Trend</span>
       <select id="trend-cat-sel" class="inp" style="width:auto"
               onchange="_trendCat=this.value;renderCategoryTrend()">
@@ -710,29 +710,6 @@ async function handleFileInput(input) {
   }
 }
 
-async function importFolder() {
-  const folder = document.getElementById("folder-path").value.trim();
-  if (!folder) { setImportStatus("Enter a folder path first", "err"); return; }
-  setImportStatus("Scanning…", "");
-  setBtnLoading("btn-scan", true);
-
-  try {
-    const res = await fetch("/import/folder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder }),
-    });
-    const data = await res.json();
-    if (!res.ok) { setImportStatus(data.error || "Scan failed", "err"); return; }
-    const fileCount = data.files_scanned?.length || 0;
-    await handleIncoming(data.transactions, `${data.count} transactions from ${fileCount} file(s) in ${folder}`);
-  } catch(e) {
-    setImportStatus("Network error: " + e.message, "err");
-  } finally {
-    setBtnLoading("btn-scan", false);
-  }
-}
-
 async function handleIncoming(incoming, statusMsg) {
   if (!incoming.length) {
     setImportStatus("No transactions found", "err"); return;
@@ -1051,7 +1028,7 @@ function renderBarChart() {
   document.getElementById("bar-chart").innerHTML = sorted.map(([cat, amt]) => {
     const pct = (amt/max*100).toFixed(1);
     const col = cc(cat);
-    const escCat = cat.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const escCat = _escHtml(cat);
     return `<div class="bar-row" data-cat="${escCat}" onclick="setTrendCat(this.dataset.cat)" title="Click to see ${escCat} trend over time">
       <div class="bar-label" title="${escCat}">${escCat}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
@@ -1105,6 +1082,29 @@ function renderDonut() {
       <text x="${CX}" y="${CY+11}" text-anchor="middle" font-size="9" fill="${_cssVar('--muted')}">net spent</text>
     </svg>
     <div class="legend">${legend}</div>`;
+}
+
+// Shared SVG axis scaffold (grid lines, baseline, x-axis labels) for the two
+// column-chart renderers below: renderTimeline() and renderCategoryTrend().
+function _renderChartAxes({ allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY }) {
+  const muted   = _cssVar("--muted");
+  const svgGrid = _cssVar("--svg-grid");
+  const svgBase = _cssVar("--svg-base");
+
+  const grids = [0.25,0.5,0.75,1].map(f => {
+    const y = (baseline - f*chartH).toFixed(1);
+    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${svgGrid}" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${muted}">${fmtNoSign(maxV*f)}</text>`;
+  }).join("");
+
+  const baselineLine = `<line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${svgBase}" stroke-width="1"/>`;
+
+  const xLabels = allKeys.map((k, i) => {
+    const x = PL + i*colW + colW/2;
+    return `<text x="${x.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="9" fill="${muted}">${bucketLabel(k, bucket)}</text>`;
+  }).join("");
+
+  return { grids, baselineLine, xLabels };
 }
 
 function renderTimeline() {
@@ -1180,34 +1180,23 @@ function renderTimeline() {
     return expBar + netCreditBar + incBar;
   }).join("");
 
-  const _muted   = _cssVar("--muted");
-  const _svgGrid = _cssVar("--svg-grid");
-  const _svgBase = _cssVar("--svg-base");
+  const { grids, baselineLine, xLabels } = _renderChartAxes({
+    allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY: totalH - 8,
+  });
 
-  const xLabels = allKeys.map((k, i) => {
-    const x = PL + i*colW + colW/2;
-    const lbl = bucketLabel(k, bucket);
-    return `<text x="${x.toFixed(1)}" y="${totalH-8}" text-anchor="middle" font-size="9" fill="${_muted}">${lbl}</text>`;
-  }).join("");
-
-  const grids = [0.25,0.5,0.75,1].map(f => {
-    const y = (baseline - f*chartH).toFixed(1);
-    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${_svgGrid}" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${_muted}">${fmtNoSign(maxV*f)}</text>`;
-  }).join("");
-
+  const muted = _cssVar("--muted");
   const legend = `
     <rect x="${W-PR+14}" y="${PT+2}"  width="11" height="11" fill="#f43f5e" rx="2"/>
-    <text x="${W-PR+30}" y="${PT+11}" font-size="10" fill="${_muted}">Expenses</text>
+    <text x="${W-PR+30}" y="${PT+11}" font-size="10" fill="${muted}">Expenses</text>
     <rect x="${W-PR+14}" y="${PT+20}" width="11" height="11" fill="#0d9488" rx="2" opacity=".75"/>
-    <text x="${W-PR+30}" y="${PT+29}" font-size="10" fill="${_muted}">Net Credit</text>
+    <text x="${W-PR+30}" y="${PT+29}" font-size="10" fill="${muted}">Net Credit</text>
     <rect x="${W-PR+14}" y="${PT+38}" width="11" height="11" fill="#4ade80" rx="2" opacity=".78"/>
-    <text x="${W-PR+30}" y="${PT+47}" font-size="10" fill="${_muted}">Income</text>`;
+    <text x="${W-PR+30}" y="${PT+47}" font-size="10" fill="${muted}">Income</text>`;
 
   document.getElementById("timeline").innerHTML = `
     <svg width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}" style="display:block;min-width:100%">
       ${grids}
-      <line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${_svgBase}" stroke-width="1"/>
+      ${baselineLine}
       ${bars}${xLabels}${legend}
     </svg>`;
 }
@@ -1264,25 +1253,14 @@ function renderCategoryTrend() {
               font-size="8" font-weight="600" fill="${col}">${fmtNoSign(v)}</text>` : ""}`;
   }).join("");
 
-  const _muted2   = _cssVar("--muted");
-  const _svgGrid2 = _cssVar("--svg-grid");
-  const _svgBase2 = _cssVar("--svg-base");
-
-  const xLabels = allKeys.map((k, i) => {
-    const x = PL + i*colW + colW/2;
-    return `<text x="${x.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="${_muted2}">${bucketLabel(k, bucket)}</text>`;
-  }).join("");
-
-  const grids = [0.25,0.5,0.75,1].map(f => {
-    const y = (baseline - f*chartH).toFixed(1);
-    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${_svgGrid2}" stroke-width="1" stroke-dasharray="3,3"/>
-      <text x="${PL-4}" y="${parseFloat(y)+3}" text-anchor="end" font-size="7.5" fill="${_muted2}">${fmtNoSign(maxV*f)}</text>`;
-  }).join("");
+  const { grids, baselineLine, xLabels } = _renderChartAxes({
+    allKeys, bucket, maxV, baseline, chartH, PL, W, PR, colW, labelY: H - 8,
+  });
 
   el.innerHTML = `
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:100%">
       ${grids}
-      <line x1="${PL}" y1="${baseline}" x2="${W-PR}" y2="${baseline}" stroke="${_svgBase2}" stroke-width="1"/>
+      ${baselineLine}
       ${bars}${xLabels}
     </svg>`;
 }
@@ -1388,8 +1366,6 @@ function renderTable() {
     return `<th class="${_sortCol===c.key?"active":""}" onclick="setSort('${c.key}')">${c.label} ${arrow}</th>`;
   }).join("");
 
-  const catOpts = ALL_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
-
   const tbody = rows.length ? rows.map(t => {
     const rawAmt  = parseFloat(t.amount) || 0;
     const amtCol  = t.type==="payment" ? "#94a3b8" : rawAmt >= 0 ? "#4ade80" : "#f87171";
@@ -1482,13 +1458,17 @@ function today() {
 //  CATEGORY MANAGEMENT
 // ═══════════════════════════════════════════════════════
 
+function sortCategories(cats) {
+  return cats.slice().sort((a, b) =>
+    a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+}
+
 async function fetchCategories() {
   try {
     const r = await fetch("/categories");
     if (!r.ok) return;
     const data = await r.json();
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _defaultCats = new Set(data.defaults);
     _customCats  = new Set(data.custom);
     repopulateFilters();
@@ -1509,8 +1489,7 @@ async function addCategory() {
     });
     const data = await r.json();
     if (!r.ok) { showToast("Error: " + data.error); return; }
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _customCats = new Set(data.custom);
     inp.value = "";
     renderCatList();
@@ -1529,8 +1508,7 @@ async function removeCategory(name) {
     });
     const data = await r.json();
     if (!r.ok) { showToast("Error: " + data.error); return; }
-    ALL_CATEGORIES = data.categories.slice().sort((a, b) =>
-      a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b));
+    ALL_CATEGORIES = sortCategories(data.categories);
     _customCats = new Set(data.custom);
     // Reassign any transactions using the removed category
     TXN.forEach(t => { if (t.category === name) t.category = "Uncategorized"; });
@@ -1644,13 +1622,6 @@ async function initDashboard() {
 }
 initDashboard();
 
-// Export path: update extension when type changes
-function _syncExportExt() {
-  const ext = _exportType === "pdf" ? "pdf" : "csv";
-  const el  = document.getElementById("export-path");
-  el.value  = el.value.replace(/\.(csv|pdf)$/, `.${ext}`);
-}
-
 // ═══════════════════════════════════════════════════════
 //  CHAT PANEL
 // ═══════════════════════════════════════════════════════
@@ -1704,7 +1675,7 @@ function _chatTs() {
 function _escHtml(s) {
   return String(s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-    .replace(/\n/g,"<br>");
+    .replace(/"/g,"&quot;").replace(/\n/g,"<br>");
 }
 
 function _appendChatMsg(role, text) {
@@ -1755,49 +1726,6 @@ function _handleChatAction(jsonStr) {
 // ═══════════════════════════════════════════════════════
 //  CHAT CONTEXT BUILDERS
 // ═══════════════════════════════════════════════════════
-
-function getTopMerchants(txns, limit) {
-  const expenses = txns.filter(t => t.type === "expense");
-  const byMerchant = {};
-  const countByMerchant = {};
-  
-  expenses.forEach(t => {
-    const m = t.merchant || "Unknown";
-    byMerchant[m] = (byMerchant[m] || 0) + t.spending;
-    countByMerchant[m] = (countByMerchant[m] || 0) + 1;
-  });
-  
-  return Object.entries(byMerchant)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([merchant, total]) => ({
-      merchant,
-      total: Math.round(total * 100) / 100,
-      count: countByMerchant[merchant]
-    }));
-}
-
-function getCategoryTotals(txns) {
-  const expenses = txns.filter(t => t.type === "expense");
-  const total = expenses.reduce((s, t) => s + t.spending, 0);
-  const byCat = {};
-  const countByCat = {};
-  
-  expenses.forEach(t => {
-    const c = t.category || "Uncategorized";
-    byCat[c] = (byCat[c] || 0) + t.spending;
-    countByCat[c] = (countByCat[c] || 0) + 1;
-  });
-  
-  return Object.entries(byCat)
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, amt]) => ({
-      category,
-      total: Math.round(amt * 100) / 100,
-      count: countByCat[category],
-      pct: total > 0 ? Math.round((amt / total) * 10000) / 100 : 0
-    }));
-}
 
 function getMonthlyTrend(txns, months) {
   const today = new Date();

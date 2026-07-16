@@ -1,5 +1,8 @@
 """
-Expense Tracker - Core Data Models
+Core domain module: the transaction data models, plus the categorization,
+parsing, and privacy-masking logic that operates on them. Shared by both
+parsers, app.py, and mcp_server.py; no Flask import, no I/O.
+
 All data stays local. No network calls. No PII displayed.
 """
 from dataclasses import dataclass, field
@@ -219,6 +222,27 @@ def autocat(merchant: str) -> str:
         if pattern.search(merchant):
             return category
     return "Uncategorized"
+
+
+def parse_amount(raw: str) -> Optional[float]:
+    """Parse amount strings like '$1,234.56', '-$50.00', '(100.00)'.
+    Also normalizes Unicode minus variants (em-dash, en-dash, minus sign) that
+    some banks (e.g. BofA) use for negative amounts in PDF statements."""
+    if not raw:
+        return None
+    s = str(raw).strip()
+    for ch in ('−', '–', '—'):
+        s = s.replace(ch, '-')
+    s = s.replace(",", "").replace("$", "").replace(" ", "")
+    negative = s.startswith("(") and s.endswith(")")
+    s = s.strip("()")
+    try:
+        val = float(s)
+        if val != val:  # NaN check
+            return None
+        return -val if negative else val
+    except ValueError:
+        return None
 
 
 def mask_sensitive(value: str) -> str:
